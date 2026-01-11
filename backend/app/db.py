@@ -68,9 +68,23 @@ def init_db() -> None:
     );
     """
 
+    # Add migration for existing drive_oauth_states table
+    migration = """
+    DO $$
+    BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'drive_oauth_states') THEN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                         WHERE table_name = 'drive_oauth_states' AND column_name = 'token') THEN
+                ALTER TABLE drive_oauth_states ADD COLUMN token TEXT NULL;
+            END IF;
+        END IF;
+    END $$;
+    """
+
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.execute(ddl)
+            cur.execute(migration)
         conn.commit()
 
 
