@@ -45,6 +45,15 @@ def drive_auth_start(request: Request) -> Response:
     state = secrets.token_urlsafe(24)
     create_drive_oauth_state(state)
 
+    # Store user token in database with the state for callback validation
+    user_token = get_bearer_token(request)
+    if not user_token:
+        return _bad_request("Missing authentication token")
+    
+    # Store the admin token with the state for callback retrieval
+    from .db import create_drive_oauth_state_with_token
+    create_drive_oauth_state_with_token(state, user_token)
+
     flow = Flow.from_client_config(_client_config(), scopes=_DRIVE_SCOPES, state=state)
     flow.redirect_uri = _redirect_uri()
 
@@ -79,8 +88,7 @@ def drive_auth_url(request: Request) -> Response:
 
 def drive_auth_callback(request: Request) -> Response:
     # Admin-only: finishes the OAuth code exchange.
-    require_role(request, {"admin"})
-
+    # For OAuth callback, retrieve token from database using state
     code = (request.query_params.get("code") or "").strip()
     state = (request.query_params.get("state") or "").strip()
     error = (request.query_params.get("error") or "").strip()
@@ -91,6 +99,30 @@ def drive_auth_callback(request: Request) -> Response:
     if not code or not state:
         return _bad_request("Missing code/state")
 
+    # Retrieve and validate the stored admin token
+    from .db import get_drive_oauth_state_with_token
+    stored_data = get_drive_oauth_state_with_token(state)
+    if not stored_data:
+        return _bad_request("Invalid or expired state")
+    
+    user_token = stored_data.get("token")
+    if not user_token:
+        return _bad_request("Missing authentication token")
+    
+    try:
+        from .auth import decode_token
+        payload = decode_token(user_token)
+        user = {
+            "id": int(payload.get("sub")),
+            "email": payload.get("email"),
+            "role": payload.get("role"),
+        }
+        if user.get("role") not in {"admin"}:
+            return _bad_request("Admin access required")
+    except Exception:
+        return _bad_request("Invalid authentication token")
+
+    # Consume the state (original function)
     if not consume_drive_oauth_state(state):
         return _bad_request("Invalid or expired state")
 

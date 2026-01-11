@@ -63,6 +63,7 @@ def init_db() -> None:
 
     CREATE TABLE IF NOT EXISTS drive_oauth_states (
         state TEXT PRIMARY KEY,
+        token TEXT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     """
@@ -357,6 +358,23 @@ def create_drive_oauth_state(state: str) -> None:
         "INSERT INTO drive_oauth_states (state) VALUES (%s) ON CONFLICT (state) DO NOTHING",
         (state,),
     )
+
+
+def create_drive_oauth_state_with_token(state: str, token: str) -> None:
+    execute(
+        "INSERT INTO drive_oauth_states (state, token) VALUES (%s, %s) ON CONFLICT (state) DO UPDATE SET token = EXCLUDED.token",
+        (state, token),
+    )
+
+
+def get_drive_oauth_state_with_token(state: str) -> dict | None:
+    row = fetchone(
+        "SELECT state, token, created_at FROM drive_oauth_states WHERE state = %s",
+        (state,),
+    )
+    if not row:
+        return None
+    return {"state": row[0], "token": row[1], "created_at": row[2]}
 
 
 def consume_drive_oauth_state(state: str) -> bool:
