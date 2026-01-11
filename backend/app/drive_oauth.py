@@ -151,12 +151,15 @@ def drive_auth_callback(request: Request) -> Response:
             "Try again (we request prompt=consent), and ensure you are not using an account that blocks offline access."
         )
 
-    client_cfg = flow.client_config
-    installed = client_cfg.get("installed") or client_cfg.get("web") or {}
+    # Extract OAuth client metadata from the configured client JSON.
+    # google-auth-oauthlib's internal client_config shape can vary between versions,
+    # so rely on our parsed env config.
+    client_cfg = _client_config()
+    oauth_section = client_cfg.get("web") or client_cfg.get("installed") or client_cfg
 
-    token_uri = installed.get("token_uri") or "https://oauth2.googleapis.com/token"
-    client_id = installed.get("client_id")
-    client_secret = installed.get("client_secret")
+    token_uri = oauth_section.get("token_uri") or "https://oauth2.googleapis.com/token"
+    client_id = oauth_section.get("client_id")
+    client_secret = oauth_section.get("client_secret")
 
     if not client_id or not client_secret:
         return _bad_request("OAuth client config missing client_id/client_secret")
