@@ -8,7 +8,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
 
 from .auth import require_role
-from .config import get_google_oauth_client_json, get_public_base_url
+from .config import get_frontend_base_url, get_google_oauth_client_json, get_public_base_url
 from .db import consume_drive_oauth_state, create_drive_oauth_state, upsert_drive_oauth_token
 
 
@@ -126,6 +126,9 @@ def drive_auth_callback(request: Request) -> Response:
         client_secret=client_secret,
     )
 
-    # After success, redirect to docs with a small hint.
+    # After success, redirect to frontend if configured, otherwise to docs.
     qs = urlencode({"drive": "connected"})
+    frontend = (get_frontend_base_url() or "").strip()
+    if frontend:
+        return RedirectResponse(f"{frontend.rstrip('/')}/drive?{qs}", status_code=302)
     return RedirectResponse(f"/docs?{qs}", status_code=302)

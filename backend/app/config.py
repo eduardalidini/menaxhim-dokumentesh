@@ -51,3 +51,7 @@ def get_public_base_url() -> str | None:
     # Public base URL of the deployed API, used to build OAuth redirect URI.
     # Example: https://my-api.example.com
     return os.getenv("PUBLIC_BASE_URL")
+
+
+def get_frontend_base_url() -> str | None:
+    return os.getenv("FRONTEND_BASE_URL")

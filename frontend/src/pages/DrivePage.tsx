@@ -3,7 +3,7 @@ import { apiFetch } from '../lib/api'
 import { getAuth } from '../lib/auth'
 
 export default function DrivePage() {
-  const { role } = getAuth()
+  const { role, accessToken } = getAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -13,7 +13,16 @@ export default function DrivePage() {
     setError(null)
     setLoading(true)
     try {
-      const res = await apiFetch('/api/drive/auth/url', { method: 'GET' })
+      if (!accessToken) {
+        throw new Error('Nuk je i kyçur (mungon token). Kyçu përsëri si admin.')
+      }
+
+      const res = await apiFetch('/api/drive/auth/url', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
       const authUrl = (res as any)?.auth_url
       if (!authUrl) throw new Error('Mungon auth_url nga serveri')
       window.location.href = authUrl
@@ -37,6 +46,11 @@ export default function DrivePage() {
         </div>
       ) : (
         <div className="mt-4 rounded-md border bg-white p-4">
+          {!accessToken ? (
+            <div className="mb-3 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+              Mungon token-i i kyçjes. Bëj <span className="font-medium">Dil</span> dhe kyçu përsëri si admin.
+            </div>
+          ) : null}
           <button
             className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
             type="button"
