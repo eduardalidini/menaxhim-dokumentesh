@@ -1,0 +1,232 @@
+ # Project Implementation Checklist (Menaxhimi i Dokumenteve)
+ 
+ ## Legend
+ - [ ] = pending
+ - [x] = done
+ 
+ ---
+ 
+ ## 0) Project setup & repository
+ - [x] **Repo structure defined**
+   - [x] Create folders: `backend/`, `frontend/`, `docs/` (if applicable)
+   - [x] Add `.env.example` (no secrets)
+   - [x] Add `.gitignore` for Python/Node env files
+ - [ ] **Local run instructions**
+   - [x] Backend start instructions (port, env vars)
+   - [ ] Frontend start instructions (port, API base URL)
+ - [x] **Environment variables inventory**
+   - [x] Google credentials path / JSON content handling
+   - [x] Google Drive folder ID (root folder for uploads)
+   - [x] DB connection / Supabase keys
+   - [x] JWT secret / token expiry
+ 
+ ---
+ 
+ ## 1) UI/UX (Frontend Client Demo)
+ 
+ ### 1.1 Global layout
+ - [ ] **App shell**
+   - [x] Header/Navbar present on all authenticated pages
+   - [x] Main content container + responsive layout
+   - [ ] Loading states (global spinner/skeleton)
+   - [ ] Toast notifications (success/error)
+ 
+ ### 1.2 Navbar (detailed)
+ - [ ] **Navbar structure**
+   - [ ] Left side: App name/logo “Menaxhimi i Dokumenteve”
+   - [ ] Center/links: `Dokumente`, `Ngarko`, `Arkiva`
+   - [ ] Right side: user menu (name/role) + logout
+ - [ ] **Navbar actions**
+   - [x] Button/Link: “Dokumente” navigates to documents list
+   - [x] Button/Link: “Ngarko” navigates to upload page/modal
+   - [x] Button/Link: “Arkiva” navigates to archived documents
+   - [x] Logout button calls logout action and clears token
+ - [ ] **RBAC in Navbar**
+   - [x] Staff: sees only `Dokumente` + `Arkiva`
+   - [x] Sekretaria: sees `Ngarko` and edit/replace actions
+   - [x] Admin: sees everything + admin actions (delete)
+ 
+ ### 1.3 Authentication pages
+ - [ ] **Login page**
+   - [x] Input: email/username
+   - [x] Input: password (masked)
+   - [x] Button: “Kyçu”
+   - [x] Validation: required fields
+   - [x] Error message area (wrong creds / server error)
+   - [x] Success: store token + redirect to documents
+ - [ ] **Route protection**
+   - [x] Redirect to `/login` when not authenticated
+   - [x] Preserve intended destination after login
+ 
+ ### 1.4 Documents list page (Active)
+ - [x] **Table/list UI**
+   - [x] Columns: Title, Category, File type, Status, Created at, Updated at, Actions
+   - [x] Row actions: View (open Drive link), Details, Edit metadata
+   - [x] Row actions (role-based): Replace file (Sekretaria/Admin), Archive (Sekretaria/Admin), Hard delete (Admin)
+ - [x] **Search & filters**
+   - [x] Search input (title keywords)
+   - [x] Filter: category dropdown
+   - [x] Filter: status (active/archived)
+   - [x] Filter: date range (from/to)
+   - [x] Button: “Pastro filtrat”
+ - [x] **Pagination**
+   - [x] Page size selector
+   - [x] Next/Prev controls
+ 
+ ### 1.5 Document details page/modal
+ - [x] **Details view**
+   - [x] Show all metadata fields
+   - [x] Button: “Hape në Drive”
+ 
+ ### 1.8 Replace file UI (mandatory)
+ - [x] **Replace file action**
+   - [x] Button: “Zëvendëso skedarin” (Sekretaria/Admin)
+   - [x] Modal with file picker
+   - [x] Warning text about old version handling
+   - [x] Confirm triggers API
+   - [x] On success: refresh row (file_type, updated_at, link)
+
+ ### 1.9 Archive UI
+ - [x] **Archive action**
+   - [x] Button: “Arkivo” (Sekretaria/Admin)
+   - [x] Confirm modal
+ - [x] **Archived page**
+   - [x] List archived docs
+   - [x] Actions: View, Details
+   - [ ] (Optional) Unarchive
+
+ ### 1.10 Hard delete UI (Admin only)
+ - [x] **Delete action**
+   - [x] Button: “Fshi përgjithmonë” (Admin)
+   - [x] Confirm modal warning
+   - [x] On success: remove row
+
+ ---
+   - [x] `POST /api/auth/login`
+   - [x] Token contains user id + role
+   - [x] Token expiry
+ - [x] **Password storage**
+   - [x] Passwords hashed
+ - [x] **Auth dependency**
+   - [x] Validate Authorization header
+   - [x] Return 401 if invalid/missing
+ 
+ ### 2.3 RBAC (mandatory)
+ - [x] **Roles**
+   - [x] `staf`
+   - [x] `sekretaria`
+   - [x] `admin`
+ - [x] **Permissions enforced**
+   - [x] 403 for forbidden
+ 
+ ---
+ 
+ ## 3) Database (Metadata)
+ 
+ ### 3.1 Schema: academic_documents
+ - [x] Create table + constraints
+   - [x] id PK
+   - [x] title NOT NULL
+   - [x] description nullable
+   - [x] category NOT NULL
+   - [x] tags
+   - [x] file_type NOT NULL
+   - [x] drive_file_id UNIQUE NOT NULL
+   - [x] web_view_link NOT NULL
+   - [x] status active/archived
+   - [x] ai_summary nullable
+   - [x] created_at/updated_at
+ - [x] Indexes (title/category/status)
+ 
+ ### 3.2 Schema: users (auth)
+ - [x] Create users table
+   - [x] id PK
+   - [x] email/username UNIQUE
+   - [x] password_hash
+   - [x] role
+   - [x] created_at
+ 
+ ---
+ 
+ ## 4) Google Drive Integration (mandatory)
+ 
+ ### 4.1 Setup
+ - [ ] Google Cloud project + Drive API enabled
+ - [ ] Service Account created
+ - [ ] Drive folder created + shared with SA
+ 
+ ### 4.2 Upload
+ - [x] Upload to Drive folder
+ - [x] Persist drive_file_id + web_view_link
+ - [x] If Drive fails -> no DB insert
+ 
+ ### 4.3 Replace file (mandatory)
+ - [x] Choose strategy
+   - [x] A) Update same Drive file content
+   - [ ] B) Upload new file + update DB drive_file_id
+ - [x] No orphan files rule
+   - [x] Delete old OR move to Old Versions folder
+ - [x] Update DB: file_type, updated_at, web_view_link
+ 
+ ### 4.4 Hard delete
+ - [x] Delete from Drive
+ - [x] Then delete DB record
+ 
+ ---
+ 
+ ## 5) REST API Routes (detailed)
+ 
+ ### 5.1 Auth
+ - [x] `POST /api/auth/login`
+   - [x] Validate credentials
+   - [x] Return `{access_token, token_type, role}`
+ 
+ ### 5.2 Documents
+ - [x] `POST /api/documents` (Sekretaria/Admin)
+ - [x] `GET /api/documents` (All)
+ - [x] `GET /api/documents/{id}` (All)
+ - [x] `PUT /api/documents/{id}` (Sekretaria/Admin)
+ - [x] `PUT /api/documents/{id}/file` (Sekretaria/Admin)
+ - [x] `PATCH /api/documents/{id}/archive` (Sekretaria/Admin)
+ - [x] `DELETE /api/documents/{id}` (Admin)
+ 
+ ### 5.3 Standards
+ - [x] Standard error response format
+ - [x] 400/401/403/404/409/500 behaviors defined
+ 
+ ---
+ 
+ ## 6) Optional AI Summary
+ - [ ] Extract PDF text
+ - [ ] Call Gemini API
+ - [ ] Store ai_summary
+ - [ ] Fail-safe on AI failure
+ 
+ ---
+ 
+ ## 7) Testing
+ - [x] Health check test: `GET /health` returns 200
+ - [x] DB check test: `GET /health/db` returns 200
+ - [x] Auth tests (login, 401, 403)
+ - [x] Upload tests (Drive + DB)
+ - [x] Replace file tests
+ - [x] Archive tests
+ - [x] Hard delete tests
+ - [ ] Frontend manual QA
+ 
+ ---
+ 
+ ## 8) Documentation & submission
+ - [ ] Swagger screenshots
+ - [ ] Example requests/responses
+ - [ ] Architecture diagram
+ - [ ] Local run instructions
+ - [ ] Verify no secrets committed
+ 
+ ---
+ 
+ ## 9) Deployment (optional)
+ - [ ] Deploy API
+ - [ ] Configure env vars
+ - [ ] Public link
+ - [ ] Frontend points to deployed API

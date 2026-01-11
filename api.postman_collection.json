@@ -1,0 +1,183 @@
+{
+  "info": {
+    "name": "Menaxhim Dokumentash API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://127.0.0.1:8000"},
+    {"key": "access_token", "value": ""},
+    {"key": "email", "value": "admin@example.com"},
+    {"key": "password", "value": "Admin123!"},
+    {"key": "doc_id", "value": ""}
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": {"raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"]}
+      }
+    },
+    {
+      "name": "Health DB",
+      "request": {
+        "method": "GET",
+        "url": {"raw": "{{baseUrl}}/health/db", "host": ["{{baseUrl}}"], "path": ["health", "db"]}
+      }
+    },
+    {
+      "name": "Auth - Login",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": {"raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"]}
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let jsonData = pm.response.json();",
+              "if (jsonData && jsonData.access_token) {",
+              "  pm.collectionVariables.set('access_token', jsonData.access_token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - Me",
+      "request": {
+        "method": "GET",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{access_token}}"}
+        ],
+        "url": {"raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"]}
+      }
+    },
+    {
+      "name": "Documents - List (GET)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{access_token}}"}
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/documents?status=active&page=1&page_size=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "documents"],
+          "query": [
+            {"key": "status", "value": "active"},
+            {"key": "page", "value": "1"},
+            {"key": "page_size", "value": "20"}
+          ]
+        }
+      }
+    },
+    {
+      "name": "Documents - Create (POST)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{access_token}}"}
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {"key": "title", "value": "Dokument test", "type": "text"},
+            {"key": "category", "value": "request", "type": "text"},
+            {"key": "description", "value": "pershkrim", "type": "text"},
+            {"key": "tags", "value": "tag1,tag2", "type": "text"},
+            {"key": "file", "type": "file", "src": ""}
+          ]
+        },
+        "url": {"raw": "{{baseUrl}}/api/documents", "host": ["{{baseUrl}}"], "path": ["api", "documents"]}
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let jsonData = pm.response.json();",
+              "if (jsonData && jsonData.id) {",
+              "  pm.collectionVariables.set('doc_id', String(jsonData.id));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documents - Replace File (PUT)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{access_token}}"}
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {"key": "file", "type": "file", "src": ""}
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/documents/{{doc_id}}/file",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "documents", "{{doc_id}}", "file"]
+        }
+      }
+    },
+    {
+      "name": "Documents - Get by id (GET)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{access_token}}"}
+        ],
+        "url": {"raw": "{{baseUrl}}/api/documents/{{doc_id}}", "host": ["{{baseUrl}}"], "path": ["api", "documents", "{{doc_id}}"]}
+      }
+    },
+    {
+      "name": "Documents - Update metadata (PUT)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{access_token}}"},
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Dokument test (updated)\",\n  \"description\": \"updated desc\"\n}"
+        },
+        "url": {"raw": "{{baseUrl}}/api/documents/{{doc_id}}", "host": ["{{baseUrl}}"], "path": ["api", "documents", "{{doc_id}}"]}
+      }
+    },
+    {
+      "name": "Documents - Archive (PATCH)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{access_token}}"}
+        ],
+        "url": {"raw": "{{baseUrl}}/api/documents/{{doc_id}}/archive", "host": ["{{baseUrl}}"], "path": ["api", "documents", "{{doc_id}}", "archive"]}
+      }
+    },
+    {
+      "name": "Documents - Delete (DELETE) [Admin]",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{access_token}}"}
+        ],
+        "url": {"raw": "{{baseUrl}}/api/documents/{{doc_id}}", "host": ["{{baseUrl}}"], "path": ["api", "documents", "{{doc_id}}"]}
+      }
+    }
+  ]
+}
