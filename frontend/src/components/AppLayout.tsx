@@ -18,6 +18,7 @@ export default function AppLayout() {
   }
 
   const canUpload = role === 'sekretaria' || role === 'admin'
+  const isAdmin = role === 'admin'
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -35,6 +36,11 @@ export default function AppLayout() {
               {canUpload ? (
                 <NavLink to="/ngarko" className={linkClass}>
                   Ngarko
+                </NavLink>
+              ) : null}
+              {isAdmin ? (
+                <NavLink to="/drive" className={linkClass}>
+                  Drive
                 </NavLink>
               ) : null}
             </nav>

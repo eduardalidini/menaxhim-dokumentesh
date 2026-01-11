@@ -3,6 +3,7 @@ import AppLayout from './components/AppLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 import ArkivaPage from './pages/ArkivaPage'
 import DokumentePage from './pages/DokumentePage'
+import DrivePage from './pages/DrivePage'
 import LoginPage from './pages/LoginPage'
 import NgarkoPage from './pages/NgarkoPage'
 
@@ -17,6 +18,7 @@ function App() {
           <Route path="/dokumente" element={<DokumentePage />} />
           <Route path="/arkiva" element={<ArkivaPage />} />
           <Route path="/ngarko" element={<NgarkoPage />} />
+          <Route path="/drive" element={<DrivePage />} />
         </Route>
       </Route>
 

@@ -57,6 +57,26 @@ def drive_auth_start(request: Request) -> Response:
     return RedirectResponse(auth_url, status_code=302)
 
 
+def drive_auth_url(request: Request) -> Response:
+    require_role(request, {"admin"})
+
+    from google_auth_oauthlib.flow import Flow
+
+    state = secrets.token_urlsafe(24)
+    create_drive_oauth_state(state)
+
+    flow = Flow.from_client_config(_client_config(), scopes=_DRIVE_SCOPES, state=state)
+    flow.redirect_uri = _redirect_uri()
+
+    auth_url, _ = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent",
+    )
+
+    return JSONResponse({"auth_url": auth_url})
+
+
 def drive_auth_callback(request: Request) -> Response:
     # Admin-only: finishes the OAuth code exchange.
     require_role(request, {"admin"})

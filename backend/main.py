@@ -14,7 +14,7 @@ from starlette.exceptions import HTTPException
 from backend.app.auth import create_access_token, decode_token, get_bearer_token, verify_password
 from backend.app.config import get_seed_admin_email, get_seed_admin_password
 from backend.app.db import create_user, get_user_by_email, init_db, scalar
-from backend.app.drive_oauth import drive_auth_callback, drive_auth_start
+from backend.app.drive_oauth import drive_auth_callback, drive_auth_start, drive_auth_url
 
 from backend.app.documents import (
     create_document,
@@ -129,6 +129,7 @@ routes = [
     Route("/api/auth/login", endpoint=login, methods=["POST"]),
     Route("/api/auth/me", endpoint=me, methods=["GET"]),
     Route("/api/drive/auth/start", endpoint=drive_auth_start, methods=["GET"]),
+    Route("/api/drive/auth/url", endpoint=drive_auth_url, methods=["GET"]),
     Route("/api/drive/auth/callback", endpoint=drive_auth_callback, methods=["GET"]),
     Route("/api/documents", endpoint=list_documents, methods=["GET"]),
     Route("/api/documents", endpoint=create_document, methods=["POST"]),
