@@ -7,9 +7,15 @@ from urllib.parse import urlencode
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
 
-from .auth import require_role
+from .auth import get_bearer_token, require_role
 from .config import get_frontend_base_url, get_google_oauth_client_json, get_public_base_url
-from .db import consume_drive_oauth_state, create_drive_oauth_state, upsert_drive_oauth_token
+from .db import (
+    consume_drive_oauth_state,
+    create_drive_oauth_state,
+    create_drive_oauth_state_with_token,
+    get_drive_oauth_state_with_token,
+    upsert_drive_oauth_token,
+)
 
 
 _DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
@@ -43,6 +49,7 @@ def drive_auth_start(request: Request) -> Response:
     from google_auth_oauthlib.flow import Flow
 
     state = secrets.token_urlsafe(24)
+    create_drive_oauth_state(state)
 
     # Store user token in database with the state for callback validation
     user_token = get_bearer_token(request)
@@ -73,6 +80,11 @@ def drive_auth_url(request: Request) -> Response:
     state = secrets.token_urlsafe(24)
     create_drive_oauth_state(state)
 
+    user_token = get_bearer_token(request)
+    if not user_token:
+        return _bad_request("Missing authentication token")
+    create_drive_oauth_state_with_token(state, user_token)
+
     flow = Flow.from_client_config(_client_config(), scopes=_DRIVE_SCOPES, state=state)
     flow.redirect_uri = _redirect_uri()
 
@@ -99,7 +111,6 @@ def drive_auth_callback(request: Request) -> Response:
         return _bad_request("Missing code/state")
 
     # Retrieve and validate the stored admin token
-    from .db import get_drive_oauth_state_with_token
     stored_data = get_drive_oauth_state_with_token(state)
     if not stored_data:
         return _bad_request("Invalid or expired state")
