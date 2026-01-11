@@ -43,7 +43,6 @@ def drive_auth_start(request: Request) -> Response:
     from google_auth_oauthlib.flow import Flow
 
     state = secrets.token_urlsafe(24)
-    create_drive_oauth_state(state)
 
     # Store user token in database with the state for callback validation
     user_token = get_bearer_token(request)
