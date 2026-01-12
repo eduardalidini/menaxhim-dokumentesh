@@ -16,7 +16,6 @@ from .db import (
     get_document_by_id,
     get_document_uploader_id,
     list_documents_rows,
-    set_document_ai_summary,
     update_document_file_by_id,
     update_document_by_id,
 )
@@ -95,6 +94,14 @@ def list_documents(request: Request) -> Response:
 
 
 def get_document(request: Request) -> Response:
+    doc_id = int(request.path_params["doc_id"])
+    doc = get_document_by_id(doc_id)
+    if not doc:
+        return _not_found()
+    return JSONResponse(doc)
+
+
+def generate_ai_summary(request: Request) -> Response:
     user = require_role(request, {"staf", "sekretaria", "admin"})
 
     doc_id = int(request.path_params["doc_id"])
@@ -102,50 +109,44 @@ def get_document(request: Request) -> Response:
     if not doc:
         return _not_found()
 
-    if not doc.get("ai_summary"):
-        from .config import get_gemini_api_key
+    from .config import get_gemini_api_key
 
-        api_key = get_gemini_api_key()
-        if api_key:
-            try:
-                uploader_id = get_document_uploader_id(doc_id)
-                drive_file_id = str(doc["drive_file_id"])
+    api_key = get_gemini_api_key()
+    if not api_key:
+        return _bad_request("GEMINI_API_KEY is not configured")
 
-                file_bytes = None
-                for candidate_user_id in (
-                    int(user["id"]),
-                    int(uploader_id) if uploader_id is not None else None,
-                    -1,
-                ):
-                    if candidate_user_id is None:
-                        continue
-                    try:
-                        file_bytes = download_file_from_drive(user_id=int(candidate_user_id), drive_file_id=drive_file_id)
-                        break
-                    except Exception:
-                        continue
+    uploader_id = get_document_uploader_id(doc_id)
+    drive_file_id = str(doc["drive_file_id"])
 
-                if file_bytes is None:
-                    raise RuntimeError("Unable to download file for AI summary")
-                from .gemini import generate_summary
+    file_bytes = None
+    for candidate_user_id in (
+        int(user["id"]),
+        int(uploader_id) if uploader_id is not None else None,
+        -1,
+    ):
+        if candidate_user_id is None:
+            continue
+        try:
+            file_bytes = download_file_from_drive(user_id=int(candidate_user_id), drive_file_id=drive_file_id)
+            break
+        except Exception:
+            continue
 
-                summary = generate_summary(
-                    api_key=api_key,
-                    title=str(doc.get("title") or ""),
-                    category=str(doc.get("category") or ""),
-                    description=doc.get("description"),
-                    tags=doc.get("tags"),
-                    mime_type=str(doc.get("file_type") or "application/octet-stream"),
-                    file_bytes=file_bytes,
-                )
-                updated = set_document_ai_summary(doc_id=doc_id, ai_summary=summary)
-                if updated:
-                    doc = updated
-            except Exception:
-                # If AI summary fails, still return the document.
-                pass
+    if file_bytes is None:
+        return _bad_request("Unable to download file for AI summary")
 
-    return JSONResponse(doc)
+    from .gemini import generate_summary
+
+    summary = generate_summary(
+        api_key=api_key,
+        title=str(doc.get("title") or ""),
+        category=str(doc.get("category") or ""),
+        description=doc.get("description"),
+        tags=doc.get("tags"),
+        mime_type=str(doc.get("file_type") or "application/octet-stream"),
+        file_bytes=file_bytes,
+    )
+    return JSONResponse({"doc_id": doc_id, "ai_summary": summary})
 
 
 async def create_document(request: Request) -> Response:

@@ -142,3 +142,10 @@ def test_create_document_multipart(client):
     }
     r = client.post("/api/documents", headers=headers, data=data, files=files)
     assert r.status_code == 201
+
+
+def test_ai_summary_on_demand_requires_api_key(client, monkeypatch):
+    headers = _login(client)
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    r = client.post("/api/documents/1/ai-summary", headers=headers)
+    assert r.status_code == 400

@@ -7,6 +7,7 @@ type Props = {
   currentEmail: string | null
   showManageActions?: boolean
   onDetails: (docId: number) => void
+  onSummary: (doc: DocumentItem) => void
   onArchive: (doc: DocumentItem) => void
   onDelete: (doc: DocumentItem) => void
   onReplace: (doc: DocumentItem) => void
@@ -18,6 +19,7 @@ export default function DocumentsTable({
   currentEmail,
   showManageActions = true,
   onDetails,
+  onSummary,
   onArchive,
   onDelete,
   onReplace,
@@ -73,6 +75,14 @@ export default function DocumentsTable({
                     onClick={() => onDetails(d.id)}
                   >
                     Detaje
+                  </button>
+
+                  <button
+                    type="button"
+                    className="rounded-md border px-2 py-1 text-xs font-medium hover:bg-slate-50"
+                    onClick={() => onSummary(d)}
+                  >
+                    Përmbledhje AI
                   </button>
 
                   {showManageActions ? (

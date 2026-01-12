@@ -5,10 +5,11 @@ import type { DocumentItem } from '../lib/types'
 type Props = {
   open: boolean
   docId: number | null
+  aiSummaryOverride?: string | null
   onClose: () => void
 }
 
-export default function DetailsModal({ open, docId, onClose }: Props) {
+export default function DetailsModal({ open, docId, aiSummaryOverride, onClose }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [doc, setDoc] = useState<DocumentItem | null>(null)
@@ -105,7 +106,7 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
 
             <div className="sm:col-span-2">
               <div className="text-xs font-medium text-slate-500">Përmbledhje</div>
-              <div className="text-sm">{doc.ai_summary || 'Summary not available'}</div>
+              <div className="text-sm">{aiSummaryOverride || doc.ai_summary || 'Summary not available'}</div>
             </div>
 
             <div className="sm:col-span-2">
