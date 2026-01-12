@@ -128,7 +128,6 @@ export default function ArkivaPage() {
           currentEmail={email}
           showManageActions={false}
           onDetails={openDetails}
-          onSummary={() => undefined}
           onArchive={() => undefined}
           onDelete={() => undefined}
           onReplace={() => undefined}

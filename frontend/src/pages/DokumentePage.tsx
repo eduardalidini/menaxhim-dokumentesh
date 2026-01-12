@@ -44,7 +44,6 @@ export default function DokumentePage() {
 
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [detailsDocId, setDetailsDocId] = useState<number | null>(null)
-  const [aiSummaryById, setAiSummaryById] = useState<Record<number, string>>({})
 
   const [archiveOpen, setArchiveOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -122,26 +121,6 @@ export default function DokumentePage() {
   function requestReplace(doc: DocumentItem) {
     setReplaceDoc(doc)
     setReplaceOpen(true)
-  }
-
-  async function requestSummary(doc: DocumentItem) {
-    setActionLoading(true)
-    setError(null)
-    try {
-      const res = await apiFetch(`/api/documents/${doc.id}/ai-summary`, {
-        method: 'POST',
-      })
-      const summary = (res as any)?.ai_summary as string | undefined
-      if (summary) {
-        setAiSummaryById((prev) => ({ ...prev, [doc.id]: summary }))
-      }
-      openDetails(doc.id)
-    } catch (e: any) {
-      const msg = e?.payload?.error?.message || 'Gabim gjatë gjenerimit të përmbledhjes'
-      setError(msg)
-    } finally {
-      setActionLoading(false)
-    }
   }
 
   async function doArchive() {
@@ -222,7 +201,6 @@ export default function DokumentePage() {
           role={role}
           currentEmail={email}
           onDetails={openDetails}
-          onSummary={requestSummary}
           onArchive={requestArchive}
           onDelete={requestDelete}
           onReplace={requestReplace}
@@ -242,15 +220,7 @@ export default function DokumentePage() {
       <DetailsModal
         open={detailsOpen}
         docId={detailsDocId}
-        aiSummaryOverride={detailsDocId ? aiSummaryById[detailsDocId] : null}
         onClose={() => {
-          if (detailsDocId) {
-            setAiSummaryById((prev) => {
-              const next = { ...prev }
-              delete next[detailsDocId]
-              return next
-            })
-          }
           setDetailsOpen(false)
         }}
       />

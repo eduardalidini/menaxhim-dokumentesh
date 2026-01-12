@@ -1,18 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api'
 import type { DocumentItem } from '../lib/types'
 
 type Props = {
   open: boolean
   docId: number | null
-  aiSummaryOverride?: string | null
   onClose: () => void
 }
 
-export default function DetailsModal({ open, docId, aiSummaryOverride, onClose }: Props) {
+export default function DetailsModal({ open, docId, onClose }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [doc, setDoc] = useState<DocumentItem | null>(null)
+
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [aiFullText, setAiFullText] = useState<string>('')
+  const [aiTypedText, setAiTypedText] = useState<string>('')
+  const typingIntervalRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!open || !docId) return
@@ -42,11 +47,111 @@ export default function DetailsModal({ open, docId, aiSummaryOverride, onClose }
     }
   }, [open, docId])
 
+  useEffect(() => {
+    if (typingIntervalRef.current !== null) {
+      window.clearInterval(typingIntervalRef.current)
+      typingIntervalRef.current = null
+    }
+
+    if (!open) return
+    if (!aiLoading) return
+    if (aiFullText) return
+
+    const placeholder = 'Duke gjeneruar...'
+    let idx = 0
+    const speedMs = 28
+    typingIntervalRef.current = window.setInterval(() => {
+      idx += 1
+      const slice = placeholder.slice(0, idx)
+      setAiTypedText(slice)
+      if (idx >= placeholder.length) idx = 0
+    }, speedMs)
+
+    return () => {
+      if (typingIntervalRef.current !== null) {
+        window.clearInterval(typingIntervalRef.current)
+        typingIntervalRef.current = null
+      }
+    }
+  }, [open, aiLoading, aiFullText])
+
+  useEffect(() => {
+    if (!open || !docId) return
+
+    let cancelled = false
+    setAiLoading(true)
+    setAiError(null)
+    setAiFullText('')
+    setAiTypedText('')
+
+    apiFetch(`/api/documents/${docId}/ai-summary`, {
+      method: 'POST',
+    })
+      .then((res: any) => {
+        if (cancelled) return
+        const summary = (res?.ai_summary as string | undefined) || ''
+        setAiFullText(summary)
+      })
+      .catch((e: any) => {
+        if (cancelled) return
+        const msg = e?.payload?.error?.message || 'Gabim gjatë gjenerimit të përmbledhjes nga AI'
+        setAiError(msg)
+      })
+      .finally(() => {
+        if (cancelled) return
+        setAiLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, docId])
+
+  useEffect(() => {
+    if (typingIntervalRef.current !== null) {
+      window.clearInterval(typingIntervalRef.current)
+      typingIntervalRef.current = null
+    }
+
+    if (!open) return
+    if (!aiFullText) return
+
+    let idx = 0
+    const speedMs = 18
+    typingIntervalRef.current = window.setInterval(() => {
+      idx += 1
+      setAiTypedText(aiFullText.slice(0, idx))
+      if (idx >= aiFullText.length && typingIntervalRef.current !== null) {
+        window.clearInterval(typingIntervalRef.current)
+        typingIntervalRef.current = null
+      }
+    }, speedMs)
+
+    return () => {
+      if (typingIntervalRef.current !== null) {
+        window.clearInterval(typingIntervalRef.current)
+        typingIntervalRef.current = null
+      }
+    }
+  }, [open, aiFullText])
+
+  useEffect(() => {
+    if (open) return
+    if (typingIntervalRef.current !== null) {
+      window.clearInterval(typingIntervalRef.current)
+      typingIntervalRef.current = null
+    }
+    setAiLoading(false)
+    setAiError(null)
+    setAiFullText('')
+    setAiTypedText('')
+  }, [open])
+
   if (!open) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-2xl rounded-xl border bg-white p-5 shadow-lg">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border bg-white p-5 shadow-lg">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-lg font-semibold">Detajet</div>
@@ -105,8 +210,14 @@ export default function DetailsModal({ open, docId, aiSummaryOverride, onClose }
             </div>
 
             <div className="sm:col-span-2">
-              <div className="text-xs font-medium text-slate-500">Përmbledhje</div>
-              <div className="text-sm">{aiSummaryOverride || doc.ai_summary || 'Summary not available'}</div>
+              <div className="text-xs font-medium text-slate-500">Përmbledhje nga AI</div>
+              {aiError ? <div className="mt-2 rounded-md bg-red-50 p-3 text-sm text-red-700">{aiError}</div> : null}
+              {!aiError ? (
+                <div className="mt-1 text-sm whitespace-pre-wrap">
+                  {aiTypedText || (aiLoading ? '' : '—')}
+                  {aiLoading ? <span className="inline-block w-[10px]">|</span> : null}
+                </div>
+              ) : null}
             </div>
 
             <div className="sm:col-span-2">
