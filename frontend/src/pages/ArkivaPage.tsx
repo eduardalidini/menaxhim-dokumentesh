@@ -26,7 +26,7 @@ function buildQuery(params: Record<string, string | number | undefined>) {
 }
 
 export default function ArkivaPage() {
-  const { role } = getAuth()
+  const { role, email } = getAuth()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
   const [from, setFrom] = useState('')
@@ -125,6 +125,7 @@ export default function ArkivaPage() {
         <DocumentsTable
           items={items}
           role={role}
+          currentEmail={email}
           showManageActions={false}
           onDetails={openDetails}
           onArchive={() => undefined}

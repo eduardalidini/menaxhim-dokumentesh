@@ -97,9 +97,13 @@ def test_list_documents_requires_auth(client):
 
 def test_forbidden_role(client):
     from backend.app.auth import create_access_token
+    import backend.app.documents as documents
 
     token = create_access_token(user_id=2, email="staf@example.com", role="staf")
     headers = {"Authorization": f"Bearer {token}"}
+
+    # Ensure the document is owned by someone else.
+    documents.get_document_uploader_id = lambda doc_id: 1
 
     r = client.delete("/api/documents/1", headers=headers)
     assert r.status_code == 403

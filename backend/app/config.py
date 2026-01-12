@@ -55,3 +55,7 @@ def get_public_base_url() -> str | None:
 
 def get_frontend_base_url() -> str | None:
     return os.getenv("FRONTEND_BASE_URL")
+
+
+def get_gemini_api_key() -> str | None:
+    return os.getenv("GEMINI_API_KEY")
