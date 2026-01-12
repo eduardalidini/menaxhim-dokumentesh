@@ -2,6 +2,26 @@ import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api'
 import type { DocumentItem } from '../lib/types'
 
+type AiCacheEntry = {
+  summary: string
+  expires_at_ms: number
+  generations: number
+}
+
+const AI_SUMMARY_CACHE_TTL_MS = 10 * 60 * 1000
+const AI_SUMMARY_CACHE_MAX_GENERATIONS = 3
+const aiSummaryCache = new Map<string, AiCacheEntry>()
+
+function cleanupAiSummaryCache(nowMs: number) {
+  for (const [k, v] of aiSummaryCache.entries()) {
+    if (v.expires_at_ms <= nowMs) aiSummaryCache.delete(k)
+  }
+}
+
+function buildAiCacheKey(doc: Pick<DocumentItem, 'id' | 'updated_at' | 'drive_file_id'>) {
+  return `${doc.id}:${doc.updated_at}:${doc.drive_file_id}`
+}
+
 type Props = {
   open: boolean
   docId: number | null
@@ -18,6 +38,7 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
   const [aiFullText, setAiFullText] = useState<string>('')
   const [aiTypedText, setAiTypedText] = useState<string>('')
   const typingIntervalRef = useRef<number | null>(null)
+  const aiRequestKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!open || !docId) return
@@ -26,11 +47,79 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
     setLoading(true)
     setError(null)
     setDoc(null)
+    setAiLoading(false)
+    setAiError(null)
+    setAiFullText('')
+    setAiTypedText('')
+    aiRequestKeyRef.current = null
 
     apiFetch(`/api/documents/${docId}`)
       .then((d) => {
         if (cancelled) return
         setDoc(d)
+
+        const nowMs = Date.now()
+        cleanupAiSummaryCache(nowMs)
+        const key = buildAiCacheKey(d)
+        aiRequestKeyRef.current = key
+
+        const cached = aiSummaryCache.get(key)
+        const cachedActive = !!cached && cached.expires_at_ms > nowMs
+
+        if (cachedActive && cached?.summary) {
+          setAiError(null)
+          setAiLoading(false)
+          setAiFullText(cached.summary)
+          return
+        }
+
+        const generations = cachedActive ? cached?.generations || 0 : 0
+        if (generations >= AI_SUMMARY_CACHE_MAX_GENERATIONS) {
+          setAiLoading(false)
+          setAiError('U arrit limiti i gjenerimeve për këtë dokument. Provo më vonë.')
+          return
+        }
+
+        const nextGenerations = generations + 1
+        const nextEntry: AiCacheEntry = {
+          summary: cachedActive ? cached?.summary || '' : '',
+          generations: nextGenerations,
+          expires_at_ms: nowMs + AI_SUMMARY_CACHE_TTL_MS,
+        }
+        aiSummaryCache.set(key, nextEntry)
+
+        setAiLoading(true)
+        setAiError(null)
+        setAiFullText('')
+        setAiTypedText('')
+
+        apiFetch(`/api/documents/${d.id}/ai-summary`, {
+          method: 'POST',
+        })
+          .then((res: any) => {
+            if (cancelled) return
+            if (aiRequestKeyRef.current !== key) return
+            const summary = (res?.ai_summary as string | undefined) || ''
+            const prev = aiSummaryCache.get(key)
+            const entry: AiCacheEntry = {
+              summary,
+              generations: prev?.generations || nextGenerations,
+              expires_at_ms: prev?.expires_at_ms || Date.now() + AI_SUMMARY_CACHE_TTL_MS,
+            }
+            aiSummaryCache.set(key, entry)
+            setAiFullText(summary)
+          })
+          .catch((e: any) => {
+            if (cancelled) return
+            if (aiRequestKeyRef.current !== key) return
+            const msg = e?.payload?.error?.message || 'Gabim gjatë gjenerimit të përmbledhjes nga AI'
+            setAiError(msg)
+          })
+          .finally(() => {
+            if (cancelled) return
+            if (aiRequestKeyRef.current !== key) return
+            setAiLoading(false)
+          })
       })
       .catch((e: any) => {
         if (cancelled) return
@@ -54,74 +143,15 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
     }
 
     if (!open) return
-    if (!aiLoading) return
-    if (aiFullText) return
-
-    const placeholder = 'Duke gjeneruar...'
-    let idx = 0
-    const speedMs = 28
-    typingIntervalRef.current = window.setInterval(() => {
-      idx += 1
-      const slice = placeholder.slice(0, idx)
-      setAiTypedText(slice)
-      if (idx >= placeholder.length) idx = 0
-    }, speedMs)
-
-    return () => {
-      if (typingIntervalRef.current !== null) {
-        window.clearInterval(typingIntervalRef.current)
-        typingIntervalRef.current = null
-      }
-    }
-  }, [open, aiLoading, aiFullText])
-
-  useEffect(() => {
-    if (!open || !docId) return
-
-    let cancelled = false
-    setAiLoading(true)
-    setAiError(null)
-    setAiFullText('')
-    setAiTypedText('')
-
-    apiFetch(`/api/documents/${docId}/ai-summary`, {
-      method: 'POST',
-    })
-      .then((res: any) => {
-        if (cancelled) return
-        const summary = (res?.ai_summary as string | undefined) || ''
-        setAiFullText(summary)
-      })
-      .catch((e: any) => {
-        if (cancelled) return
-        const msg = e?.payload?.error?.message || 'Gabim gjatë gjenerimit të përmbledhjes nga AI'
-        setAiError(msg)
-      })
-      .finally(() => {
-        if (cancelled) return
-        setAiLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [open, docId])
-
-  useEffect(() => {
-    if (typingIntervalRef.current !== null) {
-      window.clearInterval(typingIntervalRef.current)
-      typingIntervalRef.current = null
-    }
-
-    if (!open) return
     if (!aiFullText) return
 
     let idx = 0
-    const speedMs = 18
+    const speedMs = 95
     typingIntervalRef.current = window.setInterval(() => {
       idx += 1
       setAiTypedText(aiFullText.slice(0, idx))
       if (idx >= aiFullText.length && typingIntervalRef.current !== null) {
+        setAiTypedText(aiFullText)
         window.clearInterval(typingIntervalRef.current)
         typingIntervalRef.current = null
       }
@@ -151,7 +181,7 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border bg-white p-5 shadow-lg">
+      <div className="w-full max-w-2xl max-h-[95vh] overflow-y-auto rounded-xl border bg-white p-5 shadow-lg">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-lg font-semibold">Detajet</div>
@@ -213,9 +243,16 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
               <div className="text-xs font-medium text-slate-500">Përmbledhje nga AI</div>
               {aiError ? <div className="mt-2 rounded-md bg-red-50 p-3 text-sm text-red-700">{aiError}</div> : null}
               {!aiError ? (
-                <div className="mt-1 text-sm whitespace-pre-wrap">
-                  {aiTypedText || (aiLoading ? '' : '—')}
-                  {aiLoading ? <span className="inline-block w-[10px]">|</span> : null}
+                <div className="mt-1 w-full text-sm whitespace-pre-wrap break-words leading-relaxed">
+                  {aiLoading && !aiFullText ? (
+                    <div className="flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  ) : (
+                    aiTypedText || aiFullText || '—'
+                  )}
                 </div>
               ) : null}
             </div>
