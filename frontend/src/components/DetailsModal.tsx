@@ -100,6 +100,10 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
             if (cancelled) return
             if (aiRequestKeyRef.current !== key) return
             const summary = (res?.ai_summary as string | undefined) || ''
+            console.log('AI summary raw response:', res)
+            console.log('AI summary length:', summary.length)
+            console.log('AI summary preview (start):', summary.slice(0, 300))
+            console.log('AI summary preview (end):', summary.slice(Math.max(0, summary.length - 300)))
             const prev = aiSummaryCache.get(key)
             const entry: AiCacheEntry = {
               summary,
