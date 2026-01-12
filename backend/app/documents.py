@@ -137,15 +137,19 @@ def generate_ai_summary(request: Request) -> Response:
 
     from .gemini import generate_summary
 
-    summary = generate_summary(
-        api_key=api_key,
-        title=str(doc.get("title") or ""),
-        category=str(doc.get("category") or ""),
-        description=doc.get("description"),
-        tags=doc.get("tags"),
-        mime_type=str(doc.get("file_type") or "application/octet-stream"),
-        file_bytes=file_bytes,
-    )
+    try:
+        summary = generate_summary(
+            api_key=api_key,
+            title=str(doc.get("title") or ""),
+            category=str(doc.get("category") or ""),
+            description=doc.get("description"),
+            tags=doc.get("tags"),
+            mime_type=str(doc.get("file_type") or "application/octet-stream"),
+            file_bytes=file_bytes,
+        )
+    except Exception as e:
+        return _bad_request(f"AI summary generation failed: {e}")
+
     return JSONResponse({"doc_id": doc_id, "ai_summary": summary})
 
 
