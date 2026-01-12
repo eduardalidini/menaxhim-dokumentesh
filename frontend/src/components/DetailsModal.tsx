@@ -81,6 +81,10 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
               <div className="text-xs font-medium text-slate-500">Lloji i skedarit</div>
               <div className="text-sm">{doc.file_type}</div>
             </div>
+            <div>
+              <div className="text-xs font-medium text-slate-500">Ngarkuar nga</div>
+              <div className="text-sm">{doc.uploaded_by_email || '—'}</div>
+            </div>
             <div className="sm:col-span-2">
               <div className="text-xs font-medium text-slate-500">Përshkrimi</div>
               <div className="text-sm">{doc.description || '—'}</div>

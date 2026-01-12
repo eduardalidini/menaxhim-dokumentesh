@@ -144,6 +144,7 @@ async def create_document(request: Request) -> Response:
         file_type=file_content_type,
         drive_file_id=drive_file_id,
         web_view_link=web_view_link,
+        uploaded_by_user_id=int(user["id"]),
     )
     return JSONResponse(doc, status_code=201)
 

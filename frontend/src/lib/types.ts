@@ -9,6 +9,7 @@ export type DocumentItem = {
   file_type: string
   drive_file_id: string
   web_view_link: string
+  uploaded_by_email?: string | null
   status: DocumentStatus
   ai_summary: string | null
   created_at: string

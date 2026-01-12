@@ -46,6 +46,7 @@ def init_db() -> None:
         file_type VARCHAR(100) NOT NULL,
         drive_file_id TEXT UNIQUE NOT NULL,
         web_view_link TEXT NOT NULL,
+        uploaded_by_user_id BIGINT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'active',
         ai_summary TEXT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -99,10 +100,24 @@ def init_db() -> None:
     END $$;
     """
 
+    # Add migration for existing academic_documents table
+    migration_documents = """
+    DO $$
+    BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'academic_documents') THEN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                         WHERE table_name = 'academic_documents' AND column_name = 'uploaded_by_user_id') THEN
+                ALTER TABLE academic_documents ADD COLUMN uploaded_by_user_id BIGINT NULL;
+            END IF;
+        END IF;
+    END $$;
+    """
+
     with _connect() as conn:
         with conn.cursor() as cur:
             cur.execute(ddl)
             cur.execute(migration)
+            cur.execute(migration_documents)
         conn.commit()
 
 
@@ -221,20 +236,23 @@ def _row_to_document(row: tuple[object, ...]) -> dict:
         "file_type": row[5],
         "drive_file_id": row[6],
         "web_view_link": row[7],
-        "status": row[8],
-        "ai_summary": row[9],
-        "created_at": row[10].isoformat() if hasattr(row[10], "isoformat") else row[10],
-        "updated_at": row[11].isoformat() if hasattr(row[11], "isoformat") else row[11],
+        "uploaded_by_email": row[8],
+        "status": row[9],
+        "ai_summary": row[10],
+        "created_at": row[11].isoformat() if hasattr(row[11], "isoformat") else row[11],
+        "updated_at": row[12].isoformat() if hasattr(row[12], "isoformat") else row[12],
     }
 
 
 def get_document_by_id(doc_id: int) -> dict | None:
     row = fetchone(
         """
-        SELECT id, title, description, category, tags, file_type, drive_file_id, web_view_link,
-               status, ai_summary, created_at, updated_at
-        FROM academic_documents
-        WHERE id = %s
+        SELECT d.id, d.title, d.description, d.category, d.tags, d.file_type, d.drive_file_id, d.web_view_link,
+               u.username AS uploaded_by_email,
+               d.status, d.ai_summary, d.created_at, d.updated_at
+        FROM academic_documents d
+        LEFT JOIN users u ON u.id = d.uploaded_by_user_id
+        WHERE d.id = %s
         """,
         (doc_id,),
     )
@@ -254,14 +272,13 @@ def update_document_file_by_id(
         UPDATE academic_documents
         SET file_type = %s, web_view_link = %s, updated_at = NOW()
         WHERE id = %s
-        RETURNING id, title, description, category, tags, file_type, drive_file_id, web_view_link,
-                  status, ai_summary, created_at, updated_at
+        RETURNING id
         """,
         (file_type, web_view_link, doc_id),
     )
     if not row:
         return None
-    return _row_to_document(row)
+    return get_document_by_id(doc_id)
 
 
 def list_documents_rows(
@@ -300,12 +317,14 @@ def list_documents_rows(
 
     sql = (
         """
-        SELECT id, title, description, category, tags, file_type, drive_file_id, web_view_link,
-               status, ai_summary, created_at, updated_at
-        FROM academic_documents
+        SELECT d.id, d.title, d.description, d.category, d.tags, d.file_type, d.drive_file_id, d.web_view_link,
+               u.username AS uploaded_by_email,
+               d.status, d.ai_summary, d.created_at, d.updated_at
+        FROM academic_documents d
+        LEFT JOIN users u ON u.id = d.uploaded_by_user_id
         """
-        + where_sql
-        + " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        + where_sql.replace("created_at", "d.created_at")
+        + " ORDER BY d.created_at DESC LIMIT %s OFFSET %s"
     )
     params.extend([page_size, offset])
 
@@ -325,21 +344,21 @@ def create_document_row(
     file_type: str,
     drive_file_id: str,
     web_view_link: str,
+    uploaded_by_user_id: int | None,
 ) -> dict:
     row = execute_returning(
         """
         INSERT INTO academic_documents
-          (title, description, category, tags, file_type, drive_file_id, web_view_link, status, updated_at)
+          (title, description, category, tags, file_type, drive_file_id, web_view_link, uploaded_by_user_id, status, updated_at)
         VALUES
-          (%s, %s, %s, %s, %s, %s, %s, 'active', NOW())
-        RETURNING id, title, description, category, tags, file_type, drive_file_id, web_view_link,
-                  status, ai_summary, created_at, updated_at
+          (%s, %s, %s, %s, %s, %s, %s, %s, 'active', NOW())
+        RETURNING id
         """,
-        (title, description, category, tags, file_type, drive_file_id, web_view_link),
+        (title, description, category, tags, file_type, drive_file_id, web_view_link, uploaded_by_user_id),
     )
     if not row:
         raise RuntimeError("Failed to create document")
-    return _row_to_document(row)
+    return get_document_by_id(int(row[0]))
 
 
 def update_document_by_id(
@@ -375,14 +394,13 @@ def update_document_by_id(
         UPDATE academic_documents
         SET {sets}, updated_at = NOW()
         WHERE id = %s
-        RETURNING id, title, description, category, tags, file_type, drive_file_id, web_view_link,
-                  status, ai_summary, created_at, updated_at
+        RETURNING id
         """.format(sets=", ".join(sets)),
         tuple(params),
     )
     if not row:
         return None
-    return _row_to_document(row)
+    return get_document_by_id(doc_id)
 
 
 def archive_document_by_id(doc_id: int) -> dict | None:
@@ -391,14 +409,13 @@ def archive_document_by_id(doc_id: int) -> dict | None:
         UPDATE academic_documents
         SET status = 'archived', updated_at = NOW()
         WHERE id = %s
-        RETURNING id, title, description, category, tags, file_type, drive_file_id, web_view_link,
-                  status, ai_summary, created_at, updated_at
+        RETURNING id
         """,
         (doc_id,),
     )
     if not row:
         return None
-    return _row_to_document(row)
+    return get_document_by_id(doc_id)
 
 
 def delete_document_by_id(doc_id: int) -> bool:
