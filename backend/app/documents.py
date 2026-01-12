@@ -14,11 +14,30 @@ from .db import (
     create_document_row,
     delete_document_by_id,
     get_document_by_id,
+    get_document_uploader_id,
     list_documents_rows,
+    set_document_ai_summary,
     update_document_file_by_id,
     update_document_by_id,
 )
-from .drive import delete_file_from_drive, update_file_content_in_drive, upload_file_to_drive
+from .drive import delete_file_from_drive, download_file_from_drive, update_file_content_in_drive, upload_file_to_drive
+
+
+def _forbidden(message: str = "forbidden") -> Response:
+    return JSONResponse({"error": {"code": "forbidden", "message": message}}, status_code=403)
+
+
+def _require_owner_or_admin(request: Request, *, doc_id: int) -> dict | None:
+    user = require_role(request, {"staf", "sekretaria", "admin"})
+    if user.get("role") == "admin":
+        return user
+
+    uploader_id = get_document_uploader_id(doc_id)
+    if uploader_id is None:
+        return None
+    if int(uploader_id) != int(user["id"]):
+        raise PermissionError("forbidden")
+    return user
 
 
 def _bad_request(message: str) -> Response:
@@ -76,12 +95,56 @@ def list_documents(request: Request) -> Response:
 
 
 def get_document(request: Request) -> Response:
-    require_auth(request)
+    user = require_role(request, {"staf", "sekretaria", "admin"})
 
     doc_id = int(request.path_params["doc_id"])
     doc = get_document_by_id(doc_id)
     if not doc:
         return _not_found()
+
+    if not doc.get("ai_summary"):
+        from .config import get_gemini_api_key
+
+        api_key = get_gemini_api_key()
+        if api_key:
+            try:
+                uploader_id = get_document_uploader_id(doc_id)
+                drive_file_id = str(doc["drive_file_id"])
+
+                file_bytes = None
+                for candidate_user_id in (
+                    int(user["id"]),
+                    int(uploader_id) if uploader_id is not None else None,
+                    -1,
+                ):
+                    if candidate_user_id is None:
+                        continue
+                    try:
+                        file_bytes = download_file_from_drive(user_id=int(candidate_user_id), drive_file_id=drive_file_id)
+                        break
+                    except Exception:
+                        continue
+
+                if file_bytes is None:
+                    raise RuntimeError("Unable to download file for AI summary")
+                from .gemini import generate_summary
+
+                summary = generate_summary(
+                    api_key=api_key,
+                    title=str(doc.get("title") or ""),
+                    category=str(doc.get("category") or ""),
+                    description=doc.get("description"),
+                    tags=doc.get("tags"),
+                    mime_type=str(doc.get("file_type") or "application/octet-stream"),
+                    file_bytes=file_bytes,
+                )
+                updated = set_document_ai_summary(doc_id=doc_id, ai_summary=summary)
+                if updated:
+                    doc = updated
+            except Exception:
+                # If AI summary fails, still return the document.
+                pass
+
     return JSONResponse(doc)
 
 
@@ -195,9 +258,13 @@ async def update_document(request: Request) -> Response:
 
 
 def archive_document(request: Request) -> Response:
-    require_role(request, {"sekretaria", "admin"})
-
     doc_id = int(request.path_params["doc_id"])
+
+    try:
+        _require_owner_or_admin(request, doc_id=doc_id)
+    except PermissionError:
+        return _forbidden("Only the uploader (or admin) can archive this document")
+
     updated = archive_document_by_id(doc_id)
     if not updated:
         return _not_found()
@@ -205,14 +272,38 @@ def archive_document(request: Request) -> Response:
 
 
 def delete_document(request: Request) -> Response:
-    user = require_role(request, {"admin"})
-
     doc_id = int(request.path_params["doc_id"])
+
+    try:
+        user = _require_owner_or_admin(request, doc_id=doc_id)
+    except PermissionError:
+        return _forbidden("Only the uploader (or admin) can delete this document")
+    if not user:
+        return _not_found()
+
     doc = get_document_by_id(doc_id)
     if not doc:
         return _not_found()
 
-    delete_file_from_drive(user_id=int(user["id"]), drive_file_id=str(doc["drive_file_id"]))
+    uploader_id = get_document_uploader_id(doc_id)
+    drive_file_id = str(doc["drive_file_id"])
+    last_err: Exception | None = None
+    for candidate_user_id in (
+        int(user["id"]),
+        int(uploader_id) if uploader_id is not None else None,
+        -1,
+    ):
+        if candidate_user_id is None:
+            continue
+        try:
+            delete_file_from_drive(user_id=int(candidate_user_id), drive_file_id=drive_file_id)
+            last_err = None
+            break
+        except Exception as e:
+            last_err = e
+            continue
+    if last_err is not None:
+        return _bad_request(f"Failed to delete file from Drive: {last_err}")
 
     ok = delete_document_by_id(doc_id)
     if not ok:
@@ -221,9 +312,15 @@ def delete_document(request: Request) -> Response:
 
 
 async def replace_document_file(request: Request) -> Response:
-    user = require_role(request, {"sekretaria", "admin"})
-
     doc_id = int(request.path_params["doc_id"])
+
+    try:
+        user = _require_owner_or_admin(request, doc_id=doc_id)
+    except PermissionError:
+        return _forbidden("Only the uploader (or admin) can replace the file for this document")
+    if not user:
+        return _not_found()
+
     doc = get_document_by_id(doc_id)
     if not doc:
         return _not_found()
@@ -253,12 +350,31 @@ async def replace_document_file(request: Request) -> Response:
         return _bad_request("File too large. Max size is 10MB")
 
     try:
-        drive = update_file_content_in_drive(
-            user_id=int(user["id"]),
-            drive_file_id=str(doc["drive_file_id"]),
-            content_type=file_content_type,
-            content=content,
-        )
+        uploader_id = get_document_uploader_id(doc_id)
+        drive_file_id = str(doc["drive_file_id"])
+        last_err: Exception | None = None
+        drive = None
+        for candidate_user_id in (
+            int(user["id"]),
+            int(uploader_id) if uploader_id is not None else None,
+            -1,
+        ):
+            if candidate_user_id is None:
+                continue
+            try:
+                drive = update_file_content_in_drive(
+                    user_id=int(candidate_user_id),
+                    drive_file_id=drive_file_id,
+                    content_type=file_content_type,
+                    content=content,
+                )
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                continue
+        if last_err is not None or drive is None:
+            raise RuntimeError(str(last_err) if last_err is not None else "Drive update failed")
     except RuntimeError as e:
         return _bad_request(str(e))
     web_view_link = (drive.get("web_view_link") or "").strip() or str(doc["web_view_link"])

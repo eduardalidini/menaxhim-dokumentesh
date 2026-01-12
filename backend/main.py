@@ -260,7 +260,7 @@ async def permission_error_handler(request: Request, exc: PermissionError):
     if message == "unauthorized":
         return JSONResponse({"error": {"code": "unauthorized", "message": "Missing or invalid token"}}, status_code=401)
     if message == "forbidden":
-        return JSONResponse({"error": {"code": "forbidden", "message": "You do not have access"}}, status_code=403)
+        message = "Forbidden"
     return JSONResponse({"error": {"code": "forbidden", "message": message}}, status_code=403)
 
 

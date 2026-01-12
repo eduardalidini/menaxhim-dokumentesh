@@ -423,6 +423,29 @@ def delete_document_by_id(doc_id: int) -> bool:
     return bool(row)
 
 
+def get_document_uploader_id(doc_id: int) -> int | None:
+    row = fetchone("SELECT uploaded_by_user_id FROM academic_documents WHERE id = %s", (doc_id,))
+    if not row:
+        return None
+    value = row[0]
+    return int(value) if value is not None else None
+
+
+def set_document_ai_summary(*, doc_id: int, ai_summary: str) -> dict | None:
+    row = execute_returning(
+        """
+        UPDATE academic_documents
+        SET ai_summary = %s, updated_at = NOW()
+        WHERE id = %s
+        RETURNING id
+        """,
+        (ai_summary, doc_id),
+    )
+    if not row:
+        return None
+    return get_document_by_id(doc_id)
+
+
 def upsert_drive_oauth_token(*, refresh_token: str, token_uri: str, client_id: str, client_secret: str) -> None:
     execute(
         """

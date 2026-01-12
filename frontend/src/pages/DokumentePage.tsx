@@ -28,7 +28,7 @@ function buildQuery(params: Record<string, string | number | undefined>) {
 }
 
 export default function DokumentePage() {
-  const { role } = getAuth()
+  const { role, email } = getAuth()
 
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
@@ -199,6 +199,7 @@ export default function DokumentePage() {
         <DocumentsTable
           items={items}
           role={role}
+          currentEmail={email}
           onDetails={openDetails}
           onArchive={requestArchive}
           onDelete={requestDelete}

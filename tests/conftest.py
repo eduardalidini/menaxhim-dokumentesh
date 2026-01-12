@@ -62,6 +62,8 @@ def client(monkeypatch):
         },
     )
 
+    monkeypatch.setattr(documents, "get_document_uploader_id", lambda doc_id: 1)
+
     monkeypatch.setattr(
         documents,
         "create_document_row",

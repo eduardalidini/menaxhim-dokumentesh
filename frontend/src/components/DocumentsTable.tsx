@@ -4,6 +4,7 @@ import type { DocumentItem } from '../lib/types'
 type Props = {
   items: DocumentItem[]
   role: Role | null
+  currentEmail: string | null
   showManageActions?: boolean
   onDetails: (docId: number) => void
   onArchive: (doc: DocumentItem) => void
@@ -14,14 +15,14 @@ type Props = {
 export default function DocumentsTable({
   items,
   role,
+  currentEmail,
   showManageActions = true,
   onDetails,
   onArchive,
   onDelete,
   onReplace,
 }: Props) {
-  const canManage = role === 'sekretaria' || role === 'admin'
-  const canDelete = role === 'admin'
+  const isAdmin = role === 'admin'
 
   return (
     <div className="overflow-x-auto rounded-xl border bg-white">
@@ -53,6 +54,11 @@ export default function DocumentsTable({
               <td className="border-b px-4 py-3 text-slate-700">{new Date(d.updated_at).toLocaleDateString()}</td>
               <td className="border-b px-4 py-3">
                 <div className="flex flex-wrap gap-2">
+                  {(() => {
+                    const isOwner = !!currentEmail && !!d.uploaded_by_email && d.uploaded_by_email === currentEmail
+                    const canManageDoc = isAdmin || isOwner
+                    return (
+                      <>
                   <a
                     href={d.web_view_link}
                     target="_blank"
@@ -74,9 +80,9 @@ export default function DocumentsTable({
                       <button
                         type="button"
                         className="rounded-md border px-2 py-1 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
-                        disabled={!canManage}
+                        disabled={!canManageDoc}
                         onClick={() => onReplace(d)}
-                        title={!canManage ? 'Vetëm Sekretaria/Admin' : undefined}
+                        title={!canManageDoc ? 'Vetëm ngarkuesi/Admin' : undefined}
                       >
                         Zëvendëso
                       </button>
@@ -84,9 +90,9 @@ export default function DocumentsTable({
                       <button
                         type="button"
                         className="rounded-md border px-2 py-1 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
-                        disabled={!canManage || d.status === 'archived'}
+                        disabled={!canManageDoc || d.status === 'archived'}
                         onClick={() => onArchive(d)}
-                        title={!canManage ? 'Vetëm Sekretaria/Admin' : undefined}
+                        title={!canManageDoc ? 'Vetëm ngarkuesi/Admin' : undefined}
                       >
                         Arkivo
                       </button>
@@ -94,14 +100,17 @@ export default function DocumentsTable({
                       <button
                         type="button"
                         className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
-                        disabled={!canDelete}
+                        disabled={!canManageDoc}
                         onClick={() => onDelete(d)}
-                        title={!canDelete ? 'Vetëm Admin' : undefined}
+                        title={!canManageDoc ? 'Vetëm ngarkuesi/Admin' : undefined}
                       >
                         Fshi
                       </button>
                     </>
                   ) : null}
+                      </>
+                    )
+                  })()}
                 </div>
               </td>
             </tr>

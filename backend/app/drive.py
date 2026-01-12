@@ -235,3 +235,17 @@ def update_file_content_in_drive(*, user_id: int, drive_file_id: str, content_ty
 def delete_file_from_drive(*, user_id: int, drive_file_id: str) -> None:
     service = get_drive_service(user_id=user_id)
     service.files().delete(fileId=drive_file_id, supportsAllDrives=True).execute()
+
+
+def download_file_from_drive(*, user_id: int, drive_file_id: str) -> bytes:
+    from googleapiclient.http import MediaIoBaseDownload
+
+    service = get_drive_service(user_id=user_id)
+
+    request = service.files().get_media(fileId=drive_file_id, supportsAllDrives=True)
+    fh = BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+    return fh.getvalue()
