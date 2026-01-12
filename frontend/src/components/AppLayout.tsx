@@ -17,7 +17,7 @@ export default function AppLayout() {
     navigate('/login')
   }
 
-  const canUpload = role === 'sekretaria' || role === 'admin'
+  const canUpload = role === 'staf' || role === 'sekretaria' || role === 'admin'
   const isAdmin = role === 'admin'
 
   return (
@@ -38,9 +38,12 @@ export default function AppLayout() {
                   Ngarko
                 </NavLink>
               ) : null}
+              <NavLink to="/drive" className={linkClass}>
+                Drive
+              </NavLink>
               {isAdmin ? (
-                <NavLink to="/drive" className={linkClass}>
-                  Drive
+                <NavLink to="/stafi" className={linkClass}>
+                  Stafi
                 </NavLink>
               ) : null}
             </nav>

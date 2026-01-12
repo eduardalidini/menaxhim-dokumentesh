@@ -4,7 +4,7 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {"key": "baseUrl", "value": "http://127.0.0.1:8000"},
+    {"key": "baseUrl", "value": "https://menaxhim-dokumentesh.onrender.com"},
     {"key": "access_token", "value": ""},
     {"key": "email", "value": "admin@example.com"},
     {"key": "password", "value": "Admin123!"},
@@ -60,6 +60,38 @@
         ],
         "url": {"raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"]}
       }
+    },
+    {
+      "name": "Drive OAuth",
+      "item": [
+        {
+          "name": "Drive - Get Auth URL (GET)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{access_token}}"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/drive/auth/url", "host": ["{{baseUrl}}"], "path": ["api", "drive", "auth", "url"]}
+          }
+        },
+        {
+          "name": "Drive - Start OAuth (Redirect) (GET)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{access_token}}"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/drive/auth/start", "host": ["{{baseUrl}}"], "path": ["api", "drive", "auth", "start"]}
+          }
+        },
+        {
+          "name": "Drive - Callback (Browser Only) (GET)",
+          "request": {
+            "method": "GET",
+            "url": {"raw": "{{baseUrl}}/api/drive/auth/callback?state=STATE&code=CODE", "host": ["{{baseUrl}}"], "path": ["api", "drive", "auth", "callback"], "query": [{"key": "state", "value": "STATE"}, {"key": "code", "value": "CODE"}]}
+          }
+        }
+      ]
     },
     {
       "name": "Documents - List (GET)",

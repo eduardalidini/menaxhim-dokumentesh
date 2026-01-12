@@ -11,10 +11,19 @@ from starlette.schemas import SchemaGenerator
 from starlette.routing import Route
 from starlette.exceptions import HTTPException
 
-from backend.app.auth import create_access_token, decode_token, get_bearer_token, verify_password
+from backend.app.auth import create_access_token, decode_token, get_bearer_token, hash_password, verify_password
 from backend.app.config import get_seed_admin_email, get_seed_admin_password
-from backend.app.db import create_user, get_user_by_email, init_db, scalar
-from backend.app.drive_oauth import drive_auth_callback, drive_auth_start, drive_auth_url
+from backend.app.db import (
+    add_allowed_email,
+    create_user,
+    get_user_by_email,
+    init_db,
+    is_email_allowed,
+    list_allowed_emails,
+    remove_allowed_email,
+    scalar,
+)
+from backend.app.drive_oauth import drive_auth_callback, drive_auth_start, drive_auth_url, drive_disconnect, drive_status
 
 from backend.app.documents import (
     create_document,
@@ -75,11 +84,88 @@ async def login(request: Request) -> Response:
     if not user:
         return JSONResponse({"error": {"code": "invalid_credentials", "message": "Invalid credentials"}}, status_code=401)
 
+    # For department-only usage: non-admin users must be whitelisted by admin.
+    if user.get("role") != "admin" and not is_email_allowed(email):
+        return JSONResponse(
+            {"error": {"code": "forbidden", "message": "Email is not allowed"}},
+            status_code=403,
+        )
+
     if not verify_password(password, user["password_hash"]):
         return JSONResponse({"error": {"code": "invalid_credentials", "message": "Invalid credentials"}}, status_code=401)
 
     token = create_access_token(user_id=int(user["id"]), email=user["email"], role=user["role"])
     return JSONResponse({"access_token": token, "token_type": "bearer", "role": user["role"]})
+
+
+def _bad_request(message: str) -> Response:
+    return JSONResponse({"error": {"code": "bad_request", "message": message}}, status_code=400)
+
+
+async def admin_list_allowed_emails(request: Request) -> Response:
+    from backend.app.auth import require_role
+
+    require_role(request, {"admin"})
+    return JSONResponse({"items": list_allowed_emails()})
+
+
+async def admin_add_allowed_email(request: Request) -> Response:
+    from backend.app.auth import require_role
+
+    require_role(request, {"admin"})
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return _bad_request("Invalid JSON")
+
+    email = (body.get("email") or "").strip().lower()
+    if not email:
+        return _bad_request("email is required")
+
+    created = add_allowed_email(email)
+    return JSONResponse(created, status_code=201)
+
+
+async def admin_remove_allowed_email(request: Request) -> Response:
+    from backend.app.auth import require_role
+
+    require_role(request, {"admin"})
+    email = (request.path_params.get("email") or "").strip().lower()
+    if not email:
+        return _bad_request("email is required")
+
+    ok = remove_allowed_email(email)
+    if not ok:
+        return JSONResponse({"error": {"code": "not_found", "message": "Email not found"}}, status_code=404)
+    return JSONResponse({"status": "deleted"})
+
+
+async def admin_create_staff_user(request: Request) -> Response:
+    from backend.app.auth import require_role
+
+    require_role(request, {"admin"})
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return _bad_request("Invalid JSON")
+
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password") or ""
+    role = (body.get("role") or "staf").strip()
+
+    if not email or not password:
+        return _bad_request("email and password are required")
+    if role not in {"staf", "sekretaria"}:
+        return _bad_request("role must be staf or sekretaria")
+
+    # Ensure user is allowed by admin whitelist.
+    add_allowed_email(email)
+
+    if get_user_by_email(email):
+        return JSONResponse({"error": {"code": "conflict", "message": "User already exists"}}, status_code=409)
+
+    created = create_user(email, hash_password(password), role=role)
+    return JSONResponse(created, status_code=201)
 
 
 def me(request: Request) -> Response:
@@ -128,9 +214,15 @@ routes = [
     Route("/docs", endpoint=docs, methods=["GET"]),
     Route("/api/auth/login", endpoint=login, methods=["POST"]),
     Route("/api/auth/me", endpoint=me, methods=["GET"]),
+    Route("/api/admin/allowed-emails", endpoint=admin_list_allowed_emails, methods=["GET"]),
+    Route("/api/admin/allowed-emails", endpoint=admin_add_allowed_email, methods=["POST"]),
+    Route("/api/admin/allowed-emails/{email:str}", endpoint=admin_remove_allowed_email, methods=["DELETE"]),
+    Route("/api/admin/users", endpoint=admin_create_staff_user, methods=["POST"]),
     Route("/api/drive/auth/start", endpoint=drive_auth_start, methods=["GET"]),
     Route("/api/drive/auth/url", endpoint=drive_auth_url, methods=["GET"]),
     Route("/api/drive/auth/callback", endpoint=drive_auth_callback, methods=["GET"]),
+    Route("/api/drive/status", endpoint=drive_status, methods=["GET"]),
+    Route("/api/drive/disconnect", endpoint=drive_disconnect, methods=["POST"]),
     Route("/api/documents", endpoint=list_documents, methods=["GET"]),
     Route("/api/documents", endpoint=create_document, methods=["POST"]),
     Route("/api/documents/{doc_id:int}", endpoint=get_document, methods=["GET"]),

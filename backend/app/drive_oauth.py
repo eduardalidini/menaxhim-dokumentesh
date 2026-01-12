@@ -4,6 +4,8 @@ import json
 import secrets
 from urllib.parse import urlencode
 
+from datetime import datetime, timezone
+
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
 
@@ -14,7 +16,9 @@ from .db import (
     create_drive_oauth_state,
     create_drive_oauth_state_with_token,
     get_drive_oauth_state_with_token,
-    upsert_drive_oauth_token,
+    delete_drive_oauth_token_for_user,
+    get_drive_oauth_token_meta_for_user,
+    upsert_drive_oauth_token_for_user,
 )
 
 
@@ -43,8 +47,7 @@ def _client_config() -> dict:
 
 
 def drive_auth_start(request: Request) -> Response:
-    # Admin-only: this connects the backend to the user's Drive.
-    require_role(request, {"admin"})
+    require_role(request, {"staf", "sekretaria", "admin"})
 
     from google_auth_oauthlib.flow import Flow
 
@@ -73,7 +76,7 @@ def drive_auth_start(request: Request) -> Response:
 
 
 def drive_auth_url(request: Request) -> Response:
-    require_role(request, {"admin"})
+    require_role(request, {"staf", "sekretaria", "admin"})
 
     from google_auth_oauthlib.flow import Flow
 
@@ -98,7 +101,7 @@ def drive_auth_url(request: Request) -> Response:
 
 
 def drive_auth_callback(request: Request) -> Response:
-    # Admin-only: finishes the OAuth code exchange.
+    # Authenticated user: finishes the OAuth code exchange.
     # For OAuth callback, retrieve token from database using state
     code = (request.query_params.get("code") or "").strip()
     state = (request.query_params.get("state") or "").strip()
@@ -110,7 +113,7 @@ def drive_auth_callback(request: Request) -> Response:
     if not code or not state:
         return _bad_request("Missing code/state")
 
-    # Retrieve and validate the stored admin token
+    # Retrieve and validate the stored user token
     stored_data = get_drive_oauth_state_with_token(state)
     if not stored_data:
         return _bad_request("Invalid or expired state")
@@ -127,8 +130,8 @@ def drive_auth_callback(request: Request) -> Response:
             "email": payload.get("email"),
             "role": payload.get("role"),
         }
-        if user.get("role") not in {"admin"}:
-            return _bad_request("Admin access required")
+        if user.get("role") not in {"staf", "sekretaria", "admin"}:
+            return _bad_request("Access required")
     except Exception:
         return _bad_request("Invalid authentication token")
 
@@ -164,7 +167,8 @@ def drive_auth_callback(request: Request) -> Response:
     if not client_id or not client_secret:
         return _bad_request("OAuth client config missing client_id/client_secret")
 
-    upsert_drive_oauth_token(
+    upsert_drive_oauth_token_for_user(
+        user_id=int(user["id"]),
         refresh_token=refresh_token,
         token_uri=token_uri,
         client_id=client_id,
@@ -172,8 +176,30 @@ def drive_auth_callback(request: Request) -> Response:
     )
 
     # After success, redirect to frontend if configured, otherwise to docs.
-    qs = urlencode({"drive": "connected"})
+    qs = urlencode({"drive": "connected", "at": datetime.now(timezone.utc).isoformat()})
     frontend = (get_frontend_base_url() or "").strip()
     if frontend:
         return RedirectResponse(f"{frontend.rstrip('/')}/drive?{qs}", status_code=302)
     return RedirectResponse(f"/docs?{qs}", status_code=302)
+
+
+def drive_status(request: Request) -> Response:
+    user = require_role(request, {"staf", "sekretaria", "admin"})
+    token = get_drive_oauth_token_meta_for_user(int(user["id"]))
+    if not token:
+        return JSONResponse({"connected": False, "connected_at": None, "updated_at": None})
+    created_at = token.get("created_at")
+    updated_at = token.get("updated_at")
+    return JSONResponse(
+        {
+            "connected": True,
+            "connected_at": created_at.isoformat() if hasattr(created_at, "isoformat") else created_at,
+            "updated_at": updated_at.isoformat() if hasattr(updated_at, "isoformat") else updated_at,
+        }
+    )
+
+
+def drive_disconnect(request: Request) -> Response:
+    user = require_role(request, {"staf", "sekretaria", "admin"})
+    ok = delete_drive_oauth_token_for_user(int(user["id"]))
+    return JSONResponse({"connected": False, "disconnected": bool(ok)})

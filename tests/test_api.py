@@ -27,6 +27,44 @@ def test_login_and_me(client):
     assert r.json()["user"]["role"] == "admin"
 
 
+def test_non_admin_requires_whitelist(client, monkeypatch):
+    import backend.main as main
+
+    user = {
+        "id": 2,
+        "email": "staf@example.com",
+        "password_hash": main.hash_password("Pass123!"),
+        "role": "staf",
+    }
+    monkeypatch.setattr(main, "get_user_by_email", lambda email: user if email == user["email"] else None)
+    monkeypatch.setattr(main, "is_email_allowed", lambda email: False)
+
+    r = client.post("/api/auth/login", json={"email": user["email"], "password": "Pass123!"})
+    assert r.status_code == 403
+
+
+def test_admin_create_staff_user(client, monkeypatch):
+    import backend.main as main
+
+    headers = _login(client)
+
+    monkeypatch.setattr(main, "get_user_by_email", lambda email: None)
+    monkeypatch.setattr(main, "add_allowed_email", lambda email: {"email": email, "created_at": "2026-01-01T00:00:00"})
+    monkeypatch.setattr(
+        main,
+        "create_user",
+        lambda email, password_hash, role: {"id": 3, "email": email, "role": role, "created_at": "2026-01-01T00:00:00"},
+    )
+
+    r = client.post(
+        "/api/admin/users",
+        headers=headers,
+        json={"email": "newstaf@example.com", "password": "Pass123!", "role": "staf"},
+    )
+    assert r.status_code == 201
+    assert r.json()["role"] == "staf"
+
+
 def test_list_documents_requires_auth(client):
     r = client.get("/api/documents")
     assert r.status_code == 401

@@ -7,7 +7,7 @@ from io import BytesIO
 
 from dotenv import load_dotenv
 
-from .db import get_drive_oauth_token
+from .db import get_drive_oauth_token_for_user
 
 
 load_dotenv()
@@ -47,7 +47,7 @@ def _ensure_credentials_file() -> str:
     raise RuntimeError("Missing Google credentials. Set GOOGLE_CREDENTIALS_JSON.")
 
 
-def get_drive_service():
+def get_drive_service(*, user_id: int):
     try:
         from googleapiclient.discovery import build
         from google.auth.transport.requests import Request
@@ -55,7 +55,7 @@ def get_drive_service():
         from google.oauth2 import service_account
 
         # 1) Prefer OAuth (user account) so uploads work on personal Google Drive
-        token = get_drive_oauth_token()
+        token = get_drive_oauth_token_for_user(user_id)
         if token:
             creds = Credentials(
                 token=None,
@@ -79,9 +79,7 @@ def get_drive_service():
             )
             return build("drive", "v3", credentials=credentials, cache_discovery=False)
 
-        raise RuntimeError(
-            "Google Drive is not connected. Configure OAuth and connect it via /api/drive/auth/start (admin-only)."
-        )
+        raise RuntimeError("Google Drive is not connected for this user. Connect it via /api/drive/auth/url")
     except Exception as e:
         raise RuntimeError(
             "Failed to initialize Google Drive client. "
@@ -92,11 +90,11 @@ def get_drive_service():
         ) from e
 
 
-def upload_file_to_drive(*, filename: str, content_type: str, content: bytes, folder_id: str) -> dict:
+def upload_file_to_drive(*, user_id: int, filename: str, content_type: str, content: bytes, folder_id: str) -> dict:
     from googleapiclient.http import MediaIoBaseUpload
     from googleapiclient.errors import HttpError
 
-    service = get_drive_service()
+    service = get_drive_service(user_id=user_id)
 
     file_metadata: dict[str, object] = {"name": filename, "parents": [folder_id]}
     media = MediaIoBaseUpload(BytesIO(content), mimetype=content_type, resumable=False)
@@ -126,11 +124,11 @@ def upload_file_to_drive(*, filename: str, content_type: str, content: bytes, fo
     }
 
 
-def update_file_content_in_drive(*, drive_file_id: str, content_type: str, content: bytes) -> dict:
+def update_file_content_in_drive(*, user_id: int, drive_file_id: str, content_type: str, content: bytes) -> dict:
     from googleapiclient.http import MediaIoBaseUpload
     from googleapiclient.errors import HttpError
 
-    service = get_drive_service()
+    service = get_drive_service(user_id=user_id)
 
     media = MediaIoBaseUpload(BytesIO(content), mimetype=content_type, resumable=False)
     try:
@@ -158,6 +156,6 @@ def update_file_content_in_drive(*, drive_file_id: str, content_type: str, conte
     }
 
 
-def delete_file_from_drive(*, drive_file_id: str) -> None:
-    service = get_drive_service()
+def delete_file_from_drive(*, user_id: int, drive_file_id: str) -> None:
+    service = get_drive_service(user_id=user_id)
     service.files().delete(fileId=drive_file_id, supportsAllDrives=True).execute()

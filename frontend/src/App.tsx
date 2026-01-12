@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage'
 import NgarkoPage from './pages/NgarkoPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import PublicHomePage from './pages/PublicHomePage'
+import StaffAdminPage from './pages/StaffAdminPage'
 import TermsPage from './pages/TermsPage'
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
           <Route path="/arkiva" element={<ArkivaPage />} />
           <Route path="/ngarko" element={<NgarkoPage />} />
           <Route path="/drive" element={<DrivePage />} />
+          <Route path="/stafi" element={<StaffAdminPage />} />
         </Route>
       </Route>
 

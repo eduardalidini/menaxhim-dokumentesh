@@ -17,7 +17,7 @@ export default function NgarkoPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const canUpload = role === 'sekretaria' || role === 'admin'
+  const canUpload = role === 'staf' || role === 'sekretaria' || role === 'admin'
   const canSubmit = useMemo(() => {
     return canUpload && !!file && title.trim().length > 0 && !!category && !loading
   }, [canUpload, file, title, category, loading])
@@ -26,7 +26,7 @@ export default function NgarkoPage() {
     return (
       <div className="rounded-md border bg-white p-4">
         <div className="font-medium">Nuk ke të drejtë</div>
-        <div className="mt-1 text-sm text-slate-600">Kjo faqe është vetëm për Sekretaria/Admin.</div>
+        <div className="mt-1 text-sm text-slate-600">Kjo faqe është vetëm për Staf/Sekretaria/Admin.</div>
       </div>
     )
   }

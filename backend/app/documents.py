@@ -86,7 +86,7 @@ def get_document(request: Request) -> Response:
 
 
 async def create_document(request: Request) -> Response:
-    require_role(request, {"sekretaria", "admin"})
+    user = require_role(request, {"staf", "sekretaria", "admin"})
 
     content_type = (request.headers.get("content-type") or "").lower()
     if "multipart/form-data" not in content_type:
@@ -122,6 +122,7 @@ async def create_document(request: Request) -> Response:
         return _bad_request("File too large. Max size is 10MB")
 
     drive = upload_file_to_drive(
+        user_id=int(user["id"]),
         filename=upload.filename or "document",
         content_type=file_content_type,
         content=content,
@@ -200,14 +201,14 @@ def archive_document(request: Request) -> Response:
 
 
 def delete_document(request: Request) -> Response:
-    require_role(request, {"admin"})
+    user = require_role(request, {"admin"})
 
     doc_id = int(request.path_params["doc_id"])
     doc = get_document_by_id(doc_id)
     if not doc:
         return _not_found()
 
-    delete_file_from_drive(drive_file_id=str(doc["drive_file_id"]))
+    delete_file_from_drive(user_id=int(user["id"]), drive_file_id=str(doc["drive_file_id"]))
 
     ok = delete_document_by_id(doc_id)
     if not ok:
@@ -216,7 +217,7 @@ def delete_document(request: Request) -> Response:
 
 
 async def replace_document_file(request: Request) -> Response:
-    require_role(request, {"sekretaria", "admin"})
+    user = require_role(request, {"sekretaria", "admin"})
 
     doc_id = int(request.path_params["doc_id"])
     doc = get_document_by_id(doc_id)
@@ -248,6 +249,7 @@ async def replace_document_file(request: Request) -> Response:
         return _bad_request("File too large. Max size is 10MB")
 
     drive = update_file_content_in_drive(
+        user_id=int(user["id"]),
         drive_file_id=str(doc["drive_file_id"]),
         content_type=file_content_type,
         content=content,

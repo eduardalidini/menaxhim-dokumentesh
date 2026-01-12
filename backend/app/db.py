@@ -32,6 +32,11 @@ def init_db() -> None:
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS allowed_emails (
+        email VARCHAR(255) PRIMARY KEY,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS academic_documents (
         id BIGSERIAL PRIMARY KEY,
         title TEXT NOT NULL,
@@ -59,6 +64,19 @@ def init_db() -> None:
         client_secret TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS drive_oauth_tokens_by_user (
+        user_id BIGINT PRIMARY KEY,
+        refresh_token TEXT NOT NULL,
+        token_uri TEXT NOT NULL,
+        client_id TEXT NOT NULL,
+        client_secret TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT fk_drive_oauth_tokens_by_user_user
+            FOREIGN KEY (user_id) REFERENCES users (id)
+            ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS drive_oauth_states (
@@ -140,6 +158,41 @@ def create_user(email: str, password_hash: str, role: str) -> dict:
     if not row:
         raise RuntimeError("Failed to create user")
     return {"id": row[0], "email": row[1], "role": row[2], "created_at": row[3]}
+
+
+def list_allowed_emails() -> list[dict]:
+    rows = []
+    with _connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT email, created_at FROM allowed_emails ORDER BY created_at DESC")
+            rows = cur.fetchall() or []
+    return [
+        {
+            "email": r[0],
+            "created_at": r[1].isoformat() if hasattr(r[1], "isoformat") else r[1],
+        }
+        for r in rows
+    ]
+
+
+def add_allowed_email(email: str) -> dict:
+    row = execute_returning(
+        "INSERT INTO allowed_emails (email) VALUES (%s) ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email RETURNING email, created_at",
+        (email,),
+    )
+    if not row:
+        raise RuntimeError("Failed to add allowed email")
+    return {"email": row[0], "created_at": row[1].isoformat() if hasattr(row[1], "isoformat") else row[1]}
+
+
+def remove_allowed_email(email: str) -> bool:
+    row = execute_returning("DELETE FROM allowed_emails WHERE email = %s RETURNING email", (email,))
+    return bool(row)
+
+
+def is_email_allowed(email: str) -> bool:
+    row = fetchone("SELECT 1 FROM allowed_emails WHERE email = %s", (email,))
+    return bool(row)
 
 
 def _row_to_document(row: tuple[object, ...]) -> dict:
@@ -365,6 +418,98 @@ def get_drive_oauth_token() -> dict | None:
     if not row:
         return None
     return {"refresh_token": row[0], "token_uri": row[1], "client_id": row[2], "client_secret": row[3]}
+
+
+def get_drive_oauth_token_meta() -> dict | None:
+    row = fetchone(
+        """
+        SELECT refresh_token, token_uri, client_id, client_secret, created_at, updated_at
+        FROM drive_oauth_tokens
+        WHERE id = 1
+        """
+    )
+    if not row:
+        return None
+    return {
+        "refresh_token": row[0],
+        "token_uri": row[1],
+        "client_id": row[2],
+        "client_secret": row[3],
+        "created_at": row[4],
+        "updated_at": row[5],
+    }
+
+
+def delete_drive_oauth_token() -> bool:
+    row = execute_returning("DELETE FROM drive_oauth_tokens WHERE id = 1 RETURNING id", ())
+    return bool(row)
+
+
+def upsert_drive_oauth_token_for_user(
+    *,
+    user_id: int,
+    refresh_token: str,
+    token_uri: str,
+    client_id: str,
+    client_secret: str,
+) -> None:
+    execute(
+        """
+        INSERT INTO drive_oauth_tokens_by_user (user_id, refresh_token, token_uri, client_id, client_secret)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (user_id)
+        DO UPDATE SET
+            refresh_token = EXCLUDED.refresh_token,
+            token_uri = EXCLUDED.token_uri,
+            client_id = EXCLUDED.client_id,
+            client_secret = EXCLUDED.client_secret,
+            updated_at = NOW()
+        """,
+        (user_id, refresh_token, token_uri, client_id, client_secret),
+    )
+
+
+def get_drive_oauth_token_for_user(user_id: int) -> dict | None:
+    row = fetchone(
+        """
+        SELECT refresh_token, token_uri, client_id, client_secret
+        FROM drive_oauth_tokens_by_user
+        WHERE user_id = %s
+        """,
+        (user_id,),
+    )
+    if not row:
+        return None
+    return {"refresh_token": row[0], "token_uri": row[1], "client_id": row[2], "client_secret": row[3]}
+
+
+def get_drive_oauth_token_meta_for_user(user_id: int) -> dict | None:
+    row = fetchone(
+        """
+        SELECT refresh_token, token_uri, client_id, client_secret, created_at, updated_at
+        FROM drive_oauth_tokens_by_user
+        WHERE user_id = %s
+        """,
+        (user_id,),
+    )
+    if not row:
+        return None
+    return {
+        "refresh_token": row[0],
+        "token_uri": row[1],
+        "client_id": row[2],
+        "client_secret": row[3],
+        "created_at": row[4],
+        "updated_at": row[5],
+    }
+
+
+def delete_drive_oauth_token_for_user(user_id: int) -> bool:
+    row = execute_returning(
+        "DELETE FROM drive_oauth_tokens_by_user WHERE user_id = %s RETURNING user_id",
+        (user_id,),
+    )
+    return bool(row)
 
 
 def create_drive_oauth_state(state: str) -> None:
