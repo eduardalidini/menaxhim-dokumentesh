@@ -14,15 +14,7 @@ def generate_summary(*, api_key: str, title: str, category: str, description: st
         f"Përshkrimi: {description or ''}\nTags: {tags or ''}\n"
     )
 
-    base_urls = (
-        "https://generativelanguage.googleapis.com/v1beta",
-        "https://generativelanguage.googleapis.com/v1",
-    )
-    model_ids = (
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-flash",
-        "gemini-1.5-pro-latest",
-    )
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={api_key}"
     data_b64 = base64.b64encode(file_bytes).decode("ascii")
 
     payload = {
@@ -38,33 +30,20 @@ def generate_summary(*, api_key: str, title: str, category: str, description: st
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": 400},
     }
 
-    last_exc: Exception | None = None
-    out = None
-    with httpx.Client(timeout=60) as client:
-        for base in base_urls:
-            for model_id in model_ids:
-                url = f"{base}/models/{model_id}:generateContent?key={api_key}"
-                try:
-                    res = client.post(url, json=payload)
-                    if res.status_code == 404:
-                        last_exc = httpx.HTTPStatusError(
-                            "Model not found",
-                            request=res.request,
-                            response=res,
-                        )
-                        continue
-                    res.raise_for_status()
-                    out = res.json()
-                    last_exc = None
-                    break
-                except Exception as e:
-                    last_exc = e
-                    continue
-            if out is not None:
-                break
-
-    if out is None:
-        raise RuntimeError(f"Gemini request failed: {last_exc}")
+    try:
+        with httpx.Client(timeout=60) as client:
+            res = client.post(url, json=payload)
+        res.raise_for_status()
+        out = res.json()
+    except httpx.HTTPStatusError as e:
+        body = None
+        try:
+            body = e.response.text
+        except Exception:
+            body = None
+        raise RuntimeError(f"Gemini request failed: HTTP {e.response.status_code} {body or ''}".strip()) from e
+    except Exception as e:
+        raise RuntimeError(f"Gemini request failed: {e}") from e
 
     candidates = out.get("candidates") or []
     if not candidates:
