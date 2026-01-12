@@ -160,6 +160,22 @@ def create_user(email: str, password_hash: str, role: str) -> dict:
     return {"id": row[0], "email": row[1], "role": row[2], "created_at": row[3]}
 
 
+def update_user_credentials_by_email(*, email: str, password_hash: str, role: str) -> dict | None:
+    row = execute_returning(
+        """
+        UPDATE users
+        SET password_hash = %s,
+            role = %s
+        WHERE username = %s
+        RETURNING id, username, role, created_at
+        """,
+        (password_hash, role, email),
+    )
+    if not row:
+        return None
+    return {"id": row[0], "email": row[1], "role": row[2], "created_at": row[3]}
+
+
 def list_allowed_emails() -> list[dict]:
     rows = []
     with _connect() as conn:

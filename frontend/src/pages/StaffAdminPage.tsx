@@ -94,7 +94,7 @@ export default function StaffAdminPage() {
     setSuccess(null)
     setLoading(true)
     try {
-      await apiFetch('/api/admin/users', {
+      const res = await apiFetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: newEmail.trim().toLowerCase(), password: newPassword, role: newRole }),
@@ -102,7 +102,8 @@ export default function StaffAdminPage() {
       setNewEmail('')
       setNewPassword('')
       setNewRole('staf')
-      setSuccess('Përdoruesi u krijua')
+      const status = (res as any)?.status
+      setSuccess(status === 'updated' ? 'Përdoruesi u përditësua' : 'Përdoruesi u krijua')
       await refresh()
     } catch (e: any) {
       const msg = e?.payload?.error?.message || 'Gabim'

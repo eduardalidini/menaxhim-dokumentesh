@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 from starlette.applications import Starlette
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -21,6 +22,7 @@ from backend.app.db import (
     is_email_allowed,
     list_allowed_emails,
     remove_allowed_email,
+    update_user_credentials_by_email,
     scalar,
 )
 from backend.app.drive_oauth import drive_auth_callback, drive_auth_start, drive_auth_url, drive_disconnect, drive_status
@@ -161,11 +163,18 @@ async def admin_create_staff_user(request: Request) -> Response:
     # Ensure user is allowed by admin whitelist.
     add_allowed_email(email)
 
-    if get_user_by_email(email):
-        return JSONResponse({"error": {"code": "conflict", "message": "User already exists"}}, status_code=409)
+    existing = get_user_by_email(email)
+    if existing:
+        if existing.get("role") == "admin":
+            return JSONResponse({"error": {"code": "forbidden", "message": "Cannot modify admin user"}}, status_code=403)
+
+        updated = update_user_credentials_by_email(email=email, password_hash=hash_password(password), role=role)
+        if not updated:
+            return JSONResponse({"error": {"code": "internal_error", "message": "Failed to update user"}}, status_code=500)
+        return JSONResponse({"status": "updated", "user": updated}, status_code=200)
 
     created = create_user(email, hash_password(password), role=role)
-    return JSONResponse(created, status_code=201)
+    return JSONResponse({"status": "created", "user": created}, status_code=201)
 
 
 def me(request: Request) -> Response:
@@ -233,12 +242,13 @@ routes = [
 ]
 
 
-app = Starlette(debug=True, routes=routes)
+debug = (os.getenv("DEBUG") or "").strip().lower() in {"1", "true", "yes"}
+app = Starlette(debug=debug, routes=routes)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"]
 )

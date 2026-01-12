@@ -121,13 +121,16 @@ async def create_document(request: Request) -> Response:
     if len(content) > max_bytes:
         return _bad_request("File too large. Max size is 10MB")
 
-    drive = upload_file_to_drive(
-        user_id=int(user["id"]),
-        filename=upload.filename or "document",
-        content_type=file_content_type,
-        content=content,
-        folder_id=get_drive_folder_id(),
-    )
+    try:
+        drive = upload_file_to_drive(
+            user_id=int(user["id"]),
+            filename=upload.filename or "document",
+            content_type=file_content_type,
+            content=content,
+            folder_id=get_drive_folder_id(),
+        )
+    except RuntimeError as e:
+        return _bad_request(str(e))
     drive_file_id = (drive.get("drive_file_id") or "").strip()
     web_view_link = (drive.get("web_view_link") or "").strip()
     if not drive_file_id or not web_view_link:
@@ -248,12 +251,15 @@ async def replace_document_file(request: Request) -> Response:
     if len(content) > max_bytes:
         return _bad_request("File too large. Max size is 10MB")
 
-    drive = update_file_content_in_drive(
-        user_id=int(user["id"]),
-        drive_file_id=str(doc["drive_file_id"]),
-        content_type=file_content_type,
-        content=content,
-    )
+    try:
+        drive = update_file_content_in_drive(
+            user_id=int(user["id"]),
+            drive_file_id=str(doc["drive_file_id"]),
+            content_type=file_content_type,
+            content=content,
+        )
+    except RuntimeError as e:
+        return _bad_request(str(e))
     web_view_link = (drive.get("web_view_link") or "").strip() or str(doc["web_view_link"])
 
     updated = update_document_file_by_id(

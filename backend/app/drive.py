@@ -110,6 +110,13 @@ def upload_file_to_drive(*, user_id: int, filename: str, content_type: str, cont
             .execute()
         )
     except HttpError as e:
+        status = getattr(getattr(e, "resp", None), "status", None)
+        if status in {403, 404}:
+            raise RuntimeError(
+                "Google Drive upload failed: the connected Google account does not have access to the configured folder. "
+                "Make sure the account has permission to the DRIVE_FOLDER_ID folder (share the folder with that email), "
+                "or change DRIVE_FOLDER_ID to a folder the account owns."
+            ) from e
         message = str(e)
         if "storageQuotaExceeded" in message or "do not have storage quota" in message:
             raise RuntimeError(
@@ -143,6 +150,12 @@ def update_file_content_in_drive(*, user_id: int, drive_file_id: str, content_ty
             .execute()
         )
     except HttpError as e:
+        status = getattr(getattr(e, "resp", None), "status", None)
+        if status in {403, 404}:
+            raise RuntimeError(
+                "Google Drive update failed: the connected Google account does not have permission to modify this file. "
+                "Ensure the account that connected Drive is allowed to access/edit the file and folder."
+            ) from e
         message = str(e)
         if "storageQuotaExceeded" in message or "do not have storage quota" in message:
             raise RuntimeError(

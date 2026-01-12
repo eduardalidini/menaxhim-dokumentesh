@@ -62,7 +62,32 @@ def test_admin_create_staff_user(client, monkeypatch):
         json={"email": "newstaf@example.com", "password": "Pass123!", "role": "staf"},
     )
     assert r.status_code == 201
-    assert r.json()["role"] == "staf"
+    assert r.json()["status"] == "created"
+    assert r.json()["user"]["role"] == "staf"
+
+
+def test_admin_create_staff_user_idempotent_update(client, monkeypatch):
+    import backend.main as main
+
+    headers = _login(client)
+
+    existing = {"id": 3, "email": "newstaf@example.com", "password_hash": "x", "role": "staf"}
+    monkeypatch.setattr(main, "get_user_by_email", lambda email: existing if email == existing["email"] else None)
+    monkeypatch.setattr(main, "add_allowed_email", lambda email: {"email": email, "created_at": "2026-01-01T00:00:00"})
+    monkeypatch.setattr(
+        main,
+        "update_user_credentials_by_email",
+        lambda **kwargs: {"id": 3, "email": kwargs["email"], "role": kwargs["role"], "created_at": "2026-01-01T00:00:00"},
+    )
+
+    r = client.post(
+        "/api/admin/users",
+        headers=headers,
+        json={"email": "newstaf@example.com", "password": "NewPass123!", "role": "sekretaria"},
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "updated"
+    assert r.json()["user"]["role"] == "sekretaria"
 
 
 def test_list_documents_requires_auth(client):
