@@ -148,7 +148,7 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
     if (!aiFullText) return
 
     let idx = 0
-    const speedMs = 95
+    const speedMs = 18
     typingIntervalRef.current = window.setInterval(() => {
       idx += 1
       setAiTypedText(aiFullText.slice(0, idx))

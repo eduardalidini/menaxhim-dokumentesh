@@ -8,11 +8,18 @@ import httpx
 def generate_summary(*, api_key: str, title: str, category: str, description: str | None, tags: str | None, mime_type: str, file_bytes: bytes) -> str:
     # Keep prompt minimal and Albanian-friendly.
     prompt = (
-        "Gjenero një përmbledhje të detajuar në shqip për dokumentin. "
-        "Duhet të jetë e gjatë dhe informative (disa paragrafë), me fjali të plota dhe pa u ndërprerë. "
-        "Nëse dokumenti ka kapituj/tema, përfshiji si nënndarje me tituj të shkurtër. "
-        "Përfshi pikat kryesore, definicione të rëndësishme dhe çfarë mëson lexuesi. "
-        "Mos shpik fakte; përdor vetëm informacionin që gjendet në dokument ose metadatat. "
+        "Vepro si një përmbledhës profesionist. Krijo një përmbledhje të qartë dhe gjithëpërfshirëse të dokumentit në gjuhën shqipe, "
+        "duke respektuar këto udhëzime:\n\n"
+        "Udhëzime:\n"
+        "- Krijo një përmbledhje të detajuar, të thelluar dhe të mirëstrukturuar, duke ruajtur qartësinë dhe përmbledhtësinë.\n"
+        "- Mbulo të gjitha pikat kyçe dhe idetë kryesore të tekstit origjinal, duke e kondensuar në një format të lehtë për t'u kuptuar.\n"
+        "- Përfshi detaje dhe shembuj relevantë që mbështesin idetë kryesore, pa informacion të panevojshëm ose përsëritje.\n"
+        "- Mbështetu vetëm në tekstin e dhënë (dokumentin dhe metadatat); mos shto informacion nga jashtë.\n"
+        "- Gjatësia duhet të jetë në përpjesëtim me gjatësinë/kompleksitetin e dokumentit: mjaftueshëm e gjatë për të kapur pikat kryesore dhe detajet, "
+        "por jo tepër e gjatë.\n"
+        "- Organizimi: përdor tituj dhe nën-tituj të qartë për seksionet (p.sh. 'Përmbledhje', 'Kapitulli 9', 'Kapitulli 10', 'Konceptet Kryesore'). "
+        "Çdo seksion shkruaje në formë paragrafësh.\n\n"
+        "Shkruaj vetëm përmbledhjen (pa shpjeguar procesin).\n\n"
         f"Titulli: {title}\nKategoria: {category}\n"
         f"Përshkrimi: {description or ''}\nTags: {tags or ''}\n"
     )
@@ -30,7 +37,7 @@ def generate_summary(*, api_key: str, title: str, category: str, description: st
                 ],
             }
         ],
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 2048},
+        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 4096},
     }
 
     try:
