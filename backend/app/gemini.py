@@ -8,8 +8,11 @@ import httpx
 def generate_summary(*, api_key: str, title: str, category: str, description: str | None, tags: str | None, mime_type: str, file_bytes: bytes) -> str:
     # Keep prompt minimal and Albanian-friendly.
     prompt = (
-        "Gjenero një përmbledhje të shkurtër (5-8 fjali) në shqip për dokumentin. "
-        "Përfshi qëllimin kryesor dhe pikat kryesore. Mos shpik fakte. "
+        "Gjenero një përmbledhje të detajuar në shqip për dokumentin. "
+        "Duhet të jetë e gjatë dhe informative (disa paragrafë), me fjali të plota dhe pa u ndërprerë. "
+        "Nëse dokumenti ka kapituj/tema, përfshiji si nënndarje me tituj të shkurtër. "
+        "Përfshi pikat kryesore, definicione të rëndësishme dhe çfarë mëson lexuesi. "
+        "Mos shpik fakte; përdor vetëm informacionin që gjendet në dokument ose metadatat. "
         f"Titulli: {title}\nKategoria: {category}\n"
         f"Përshkrimi: {description or ''}\nTags: {tags or ''}\n"
     )
@@ -27,7 +30,7 @@ def generate_summary(*, api_key: str, title: str, category: str, description: st
                 ],
             }
         ],
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 400},
+        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 2048},
     }
 
     try:

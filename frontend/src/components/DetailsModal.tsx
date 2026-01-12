@@ -37,6 +37,7 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
   const [aiError, setAiError] = useState<string | null>(null)
   const [aiFullText, setAiFullText] = useState<string>('')
   const [aiTypedText, setAiTypedText] = useState<string>('')
+  const [aiExpanded, setAiExpanded] = useState(false)
   const typingIntervalRef = useRef<number | null>(null)
   const aiRequestKeyRef = useRef<string | null>(null)
 
@@ -51,6 +52,7 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
     setAiError(null)
     setAiFullText('')
     setAiTypedText('')
+    setAiExpanded(false)
     aiRequestKeyRef.current = null
 
     apiFetch(`/api/documents/${docId}`)
@@ -100,10 +102,6 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
             if (cancelled) return
             if (aiRequestKeyRef.current !== key) return
             const summary = (res?.ai_summary as string | undefined) || ''
-            console.log('AI summary raw response:', res)
-            console.log('AI summary length:', summary.length)
-            console.log('AI summary preview (start):', summary.slice(0, 300))
-            console.log('AI summary preview (end):', summary.slice(Math.max(0, summary.length - 300)))
             const prev = aiSummaryCache.get(key)
             const entry: AiCacheEntry = {
               summary,
@@ -179,6 +177,7 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
     setAiError(null)
     setAiFullText('')
     setAiTypedText('')
+    setAiExpanded(false)
   }, [open])
 
   if (!open) return null
@@ -247,7 +246,12 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
               <div className="text-xs font-medium text-slate-500">Përmbledhje nga AI</div>
               {aiError ? <div className="mt-2 rounded-md bg-red-50 p-3 text-sm text-red-700">{aiError}</div> : null}
               {!aiError ? (
-                <div className="mt-1 w-full text-sm whitespace-pre-wrap break-words leading-relaxed">
+                <div className="mt-1 w-full">
+                  <div
+                    className={`text-sm whitespace-pre-wrap break-words leading-relaxed ${
+                      aiExpanded ? '' : 'max-h-24 overflow-hidden'
+                    }`}
+                  >
                   {aiLoading && !aiFullText ? (
                     <div className="flex items-center gap-1">
                       <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -257,6 +261,19 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
                   ) : (
                     aiTypedText || aiFullText || '—'
                   )}
+                  </div>
+
+                  {!aiLoading && !aiError && (aiFullText || aiTypedText) ? (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-slate-700 underline underline-offset-2 hover:text-slate-900"
+                        onClick={() => setAiExpanded((v) => !v)}
+                      >
+                        {aiExpanded ? 'Mbyll' : 'Zgjero'}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>
