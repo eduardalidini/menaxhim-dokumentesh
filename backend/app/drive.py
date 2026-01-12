@@ -90,11 +90,73 @@ def get_drive_service(*, user_id: int):
         ) from e
 
 
+def _extract_drive_http_error(e: Exception) -> tuple[int | None, str | None, str | None]:
+    status = getattr(getattr(e, "resp", None), "status", None)
+    raw: str | None = None
+    try:
+        raw = getattr(e, "content", None)
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", errors="replace")
+        if not raw:
+            return status, None, None
+
+        payload = json.loads(raw)
+        err = payload.get("error") if isinstance(payload, dict) else None
+        message = err.get("message") if isinstance(err, dict) else None
+
+        reason = None
+        details = err.get("errors") if isinstance(err, dict) else None
+        if isinstance(details, list) and details:
+            d0 = details[0]
+            if isinstance(d0, dict):
+                reason = d0.get("reason")
+
+        return status, reason, message
+    except Exception:
+        return status, None, raw
+
+
+def _ensure_folder_writable(*, service, folder_id: str) -> None:
+    from googleapiclient.errors import HttpError
+
+    try:
+        folder = (
+            service.files()
+            .get(
+                fileId=folder_id,
+                fields="id, name, mimeType, driveId, capabilities(canAddChildren)",
+                supportsAllDrives=True,
+            )
+            .execute()
+        )
+    except HttpError as e:
+        status, reason, message = _extract_drive_http_error(e)
+        if status in {403, 404}:
+            raise RuntimeError(
+                "Google Drive folder access check failed. "
+                "Make sure the connected Google account has access to the DRIVE_FOLDER_ID folder (and the Shared Drive if applicable). "
+                f"Drive reason: {reason or 'unknown'}. Message: {message or 'unknown'}"
+            ) from e
+        raise
+
+    caps = folder.get("capabilities") if isinstance(folder, dict) else None
+    can_add = None
+    if isinstance(caps, dict):
+        can_add = caps.get("canAddChildren")
+
+    if can_add is False:
+        raise RuntimeError(
+            "Google Drive upload failed: the connected Google account is not allowed to upload into the configured folder. "
+            "The account needs at least Contributor/Editor (Shared Drive) or Editor (My Drive folder) permissions on that folder."
+        )
+
+
 def upload_file_to_drive(*, user_id: int, filename: str, content_type: str, content: bytes, folder_id: str) -> dict:
     from googleapiclient.http import MediaIoBaseUpload
     from googleapiclient.errors import HttpError
 
     service = get_drive_service(user_id=user_id)
+    _ensure_folder_writable(service=service, folder_id=folder_id)
 
     file_metadata: dict[str, object] = {"name": filename, "parents": [folder_id]}
     media = MediaIoBaseUpload(BytesIO(content), mimetype=content_type, resumable=False)
@@ -110,12 +172,13 @@ def upload_file_to_drive(*, user_id: int, filename: str, content_type: str, cont
             .execute()
         )
     except HttpError as e:
-        status = getattr(getattr(e, "resp", None), "status", None)
+        status, reason, message = _extract_drive_http_error(e)
         if status in {403, 404}:
             raise RuntimeError(
                 "Google Drive upload failed: the connected Google account does not have access to the configured folder. "
                 "Make sure the account has permission to the DRIVE_FOLDER_ID folder (share the folder with that email), "
-                "or change DRIVE_FOLDER_ID to a folder the account owns."
+                "or change DRIVE_FOLDER_ID to a folder the account owns. "
+                f"Drive reason: {reason or 'unknown'}. Message: {message or 'unknown'}"
             ) from e
         message = str(e)
         if "storageQuotaExceeded" in message or "do not have storage quota" in message:

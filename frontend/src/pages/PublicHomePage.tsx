@@ -24,9 +24,6 @@ export default function PublicHomePage() {
           </Link>
         </div>
 
-        <div className="mt-10 border-t pt-6 text-sm text-slate-600">
-          <div>Kontakt: (vendos email-in tënd këtu)</div>
-        </div>
       </main>
     </div>
   )
