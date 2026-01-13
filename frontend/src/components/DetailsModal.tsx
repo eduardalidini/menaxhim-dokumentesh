@@ -9,7 +9,7 @@ type AiCacheEntry = {
 }
 
 const AI_SUMMARY_CACHE_TTL_MS = 10 * 60 * 1000
-const AI_SUMMARY_CACHE_MAX_GENERATIONS = 3
+const AI_SUMMARY_CACHE_MAX_GENERATIONS = Number.POSITIVE_INFINITY
 const aiSummaryCache = new Map<string, AiCacheEntry>()
 
 function cleanupAiSummaryCache(nowMs: number) {
@@ -36,9 +36,7 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
   const [aiFullText, setAiFullText] = useState<string>('')
-  const [aiTypedText, setAiTypedText] = useState<string>('')
   const [aiExpanded, setAiExpanded] = useState(false)
-  const typingIntervalRef = useRef<number | null>(null)
   const aiRequestKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -51,7 +49,6 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
     setAiLoading(false)
     setAiError(null)
     setAiFullText('')
-    setAiTypedText('')
     setAiExpanded(false)
     aiRequestKeyRef.current = null
 
@@ -93,7 +90,6 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
         setAiLoading(true)
         setAiError(null)
         setAiFullText('')
-        setAiTypedText('')
 
         apiFetch(`/api/documents/${d.id}/ai-summary`, {
           method: 'POST',
@@ -139,44 +135,10 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
   }, [open, docId])
 
   useEffect(() => {
-    if (typingIntervalRef.current !== null) {
-      window.clearInterval(typingIntervalRef.current)
-      typingIntervalRef.current = null
-    }
-
-    if (!open) return
-    if (!aiFullText) return
-
-    let idx = 0
-    const speedMs = 18
-    typingIntervalRef.current = window.setInterval(() => {
-      idx += 1
-      setAiTypedText(aiFullText.slice(0, idx))
-      if (idx >= aiFullText.length && typingIntervalRef.current !== null) {
-        setAiTypedText(aiFullText)
-        window.clearInterval(typingIntervalRef.current)
-        typingIntervalRef.current = null
-      }
-    }, speedMs)
-
-    return () => {
-      if (typingIntervalRef.current !== null) {
-        window.clearInterval(typingIntervalRef.current)
-        typingIntervalRef.current = null
-      }
-    }
-  }, [open, aiFullText])
-
-  useEffect(() => {
     if (open) return
-    if (typingIntervalRef.current !== null) {
-      window.clearInterval(typingIntervalRef.current)
-      typingIntervalRef.current = null
-    }
     setAiLoading(false)
     setAiError(null)
     setAiFullText('')
-    setAiTypedText('')
     setAiExpanded(false)
   }, [open])
 
@@ -259,11 +221,11 @@ export default function DetailsModal({ open, docId, onClose }: Props) {
                       <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                   ) : (
-                    aiTypedText || aiFullText || '—'
+                    aiFullText || '—'
                   )}
                   </div>
 
-                  {!aiLoading && !aiError && (aiFullText || aiTypedText) ? (
+                  {!aiLoading && !aiError && aiFullText ? (
                     <div className="mt-2">
                       <button
                         type="button"

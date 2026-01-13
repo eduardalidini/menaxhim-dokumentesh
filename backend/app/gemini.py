@@ -37,11 +37,11 @@ def generate_summary(*, api_key: str, title: str, category: str, description: st
                 ],
             }
         ],
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 4096},
+        "generationConfig": {"temperature": 0.2},
     }
 
     try:
-        with httpx.Client(timeout=60) as client:
+        with httpx.Client(timeout=90) as client:
             res = client.post(url, json=payload)
         res.raise_for_status()
         out = res.json()
