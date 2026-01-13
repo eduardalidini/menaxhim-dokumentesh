@@ -1,14 +1,13 @@
 type Props = {
   query: string
   category: string
-  status: string
   from: string
   to: string
-  onChange: (next: Partial<{ query: string; category: string; status: string; from: string; to: string }>) => void
+  onChange: (next: Partial<{ query: string; category: string; from: string; to: string }>) => void
   onClear: () => void
 }
 
-export default function DocumentsFilters({ query, category, status, from, to, onChange, onClear }: Props) {
+export default function DocumentsFilters({ query, category, from, to, onChange, onClear }: Props) {
   return (
     <div className="rounded-xl border bg-white p-4">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
@@ -34,18 +33,6 @@ export default function DocumentsFilters({ query, category, status, from, to, on
             <option value="decision">decision</option>
             <option value="form">form</option>
             <option value="announcement">announcement</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Statusi</label>
-          <select
-            className="mt-1 w-full rounded-md border bg-white px-3 py-2"
-            value={status}
-            onChange={(e) => onChange({ status: e.target.value })}
-          >
-            <option value="active">active</option>
-            <option value="archived">archived</option>
           </select>
         </div>
 

@@ -37,7 +37,6 @@ export default function DokumentePage() {
 
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
-  const [status, setStatus] = useState<'active' | 'archived'>('active')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [page, setPage] = useState(1)
@@ -65,14 +64,14 @@ export default function DokumentePage() {
       buildQuery({
         query,
         category,
-        status,
+        status: 'active',
         from: from || undefined,
         to: to || undefined,
         page,
         page_size: pageSize,
       })
     )
-  }, [query, category, status, from, to, page, pageSize])
+  }, [query, category, from, to, page, pageSize])
 
   useEffect(() => {
     let cancelled = false
@@ -112,7 +111,6 @@ export default function DokumentePage() {
   function onClearFilters() {
     setQuery('')
     setCategory('')
-    setStatus('active')
     setFrom('')
     setTo('')
     setPage(1)
@@ -234,13 +232,11 @@ export default function DokumentePage() {
         <DocumentsFilters
           query={query}
           category={category}
-          status={status}
           from={from}
           to={to}
           onChange={(next) => {
             if (next.query !== undefined) setQuery(next.query)
             if (next.category !== undefined) setCategory(next.category)
-            if (next.status !== undefined) setStatus(next.status as 'active' | 'archived')
             if (next.from !== undefined) setFrom(next.from)
             if (next.to !== undefined) setTo(next.to)
             setPage(1)
@@ -257,7 +253,7 @@ export default function DokumentePage() {
           items={items}
           role={role}
           currentEmail={email}
-          showUnarchiveAction={status === 'archived'}
+          showUnarchiveAction={false}
           onDetails={openDetails}
           onArchive={requestArchive}
           onUnarchive={requestUnarchive}
@@ -285,7 +281,7 @@ export default function DokumentePage() {
               onClick={undoUpload}
               disabled={actionLoading}
             >
-              Zhbëj
+              Undo
             </button>
           </div>
         </div>

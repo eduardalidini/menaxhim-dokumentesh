@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import ConfirmDialog from '../components/ConfirmDialog'
 import DetailsModal from '../components/DetailsModal'
 import DocumentsFilters from '../components/DocumentsFilters'
 import DocumentsTable from '../components/DocumentsTable'
 import Pagination from '../components/Pagination'
+import ReplaceFileModal from '../components/ReplaceFileModal'
 import { apiFetch } from '../lib/api'
 import { getAuth } from '../lib/auth'
 import type { DocumentItem } from '../lib/types'
@@ -40,6 +42,14 @@ export default function ArkivaPage() {
 
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [detailsDocId, setDetailsDocId] = useState<number | null>(null)
+
+  const [unarchiveOpen, setUnarchiveOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [selected, setSelected] = useState<DocumentItem | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+
+  const [replaceOpen, setReplaceOpen] = useState(false)
+  const [replaceDoc, setReplaceDoc] = useState<DocumentItem | null>(null)
 
   const listUrl = useMemo(() => {
     return (
@@ -95,6 +105,62 @@ export default function ArkivaPage() {
     setDetailsOpen(true)
   }
 
+  function requestUnarchive(doc: DocumentItem) {
+    setSelected(doc)
+    setUnarchiveOpen(true)
+  }
+
+  function requestDelete(doc: DocumentItem) {
+    setSelected(doc)
+    setDeleteOpen(true)
+  }
+
+  function requestReplace(doc: DocumentItem) {
+    setReplaceDoc(doc)
+    setReplaceOpen(true)
+  }
+
+  async function doUnarchive() {
+    if (!selected) return
+    setActionLoading(true)
+    try {
+      await apiFetch(`/api/documents/${selected.id}/unarchive`, {
+        method: 'PATCH',
+      })
+
+      setItems((prev) => prev.filter((d) => d.id !== selected.id))
+      setUnarchiveOpen(false)
+      setSelected(null)
+    } catch (e: any) {
+      const msg = e?.payload?.error?.message || 'Gabim gjatë rikthimit nga arkivi'
+      setError(msg)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function doDelete() {
+    if (!selected) return
+    setActionLoading(true)
+    try {
+      await apiFetch(`/api/documents/${selected.id}`, {
+        method: 'DELETE',
+      })
+      setItems((prev) => prev.filter((d) => d.id !== selected.id))
+      setDeleteOpen(false)
+      setSelected(null)
+    } catch (e: any) {
+      const msg = e?.payload?.error?.message || 'Gabim gjatë fshirjes'
+      setError(msg)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  function onReplaced(updated: DocumentItem) {
+    setItems((prev) => prev.map((d) => (d.id === updated.id ? updated : d)))
+  }
+
   return (
     <div>
       <h1 className="text-xl font-semibold">Arkiva</h1>
@@ -104,7 +170,6 @@ export default function ArkivaPage() {
         <DocumentsFilters
           query={query}
           category={category}
-          status={'archived'}
           from={from}
           to={to}
           onChange={(next) => {
@@ -126,15 +191,14 @@ export default function ArkivaPage() {
           items={items}
           role={role}
           currentEmail={email}
-          showManageActions={false}
-          showUnarchiveAction={false}
+          showManageActions={true}
+          showUnarchiveAction={true}
           onDetails={openDetails}
           onArchive={() => undefined}
-          onUnarchive={() => undefined}
-          onDelete={() => undefined}
-          onReplace={() => undefined}
+          onUnarchive={requestUnarchive}
+          onDelete={requestDelete}
+          onReplace={requestReplace}
         />
-        <div className="mt-2 text-xs text-slate-500">Veprimet e menaxhimit bëhen te faqja “Dokumente”.</div>
       </div>
 
       <Pagination
@@ -148,6 +212,49 @@ export default function ArkivaPage() {
       />
 
       <DetailsModal open={detailsOpen} docId={detailsDocId} onClose={() => setDetailsOpen(false)} />
+
+      <ConfirmDialog
+        open={unarchiveOpen}
+        title="Kthe dokumentin nga arkivi?"
+        description={selected ? `"${selected.title}" do të kthehet si active.` : undefined}
+        confirmText="Kthe"
+        onConfirm={doUnarchive}
+        onClose={() => {
+          if (actionLoading) return
+          setUnarchiveOpen(false)
+          setSelected(null)
+        }}
+        loading={actionLoading}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Fshi përgjithmonë?"
+        description={
+          selected
+            ? `"${selected.title}" do të fshihet nga DB dhe Drive. Ky veprim nuk kthehet.`
+            : undefined
+        }
+        confirmText="Fshi"
+        destructive
+        onConfirm={doDelete}
+        onClose={() => {
+          if (actionLoading) return
+          setDeleteOpen(false)
+          setSelected(null)
+        }}
+        loading={actionLoading}
+      />
+
+      <ReplaceFileModal
+        open={replaceOpen}
+        doc={replaceDoc}
+        onClose={() => {
+          setReplaceOpen(false)
+          setReplaceDoc(null)
+        }}
+        onReplaced={onReplaced}
+      />
     </div>
   )
 }

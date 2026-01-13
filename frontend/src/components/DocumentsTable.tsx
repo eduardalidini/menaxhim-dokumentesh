@@ -36,7 +36,6 @@ export default function DocumentsTable({
             <th className="border-b px-4 py-3">Titulli</th>
             <th className="border-b px-4 py-3">Kategoria</th>
             <th className="border-b px-4 py-3">Lloji</th>
-            <th className="border-b px-4 py-3">Statusi</th>
             <th className="border-b px-4 py-3">Ngarkuar nga</th>
             <th className="border-b px-4 py-3">Krijuar</th>
             <th className="border-b px-4 py-3">Përditësuar</th>
@@ -52,7 +51,6 @@ export default function DocumentsTable({
               </td>
               <td className="border-b px-4 py-3 text-slate-700">{d.category}</td>
               <td className="border-b px-4 py-3 text-slate-700">{d.file_type}</td>
-              <td className="border-b px-4 py-3 text-slate-700">{d.status}</td>
               <td className="border-b px-4 py-3 text-slate-700">{d.uploaded_by_email || '—'}</td>
               <td className="border-b px-4 py-3 text-slate-700">{new Date(d.created_at).toLocaleDateString()}</td>
               <td className="border-b px-4 py-3 text-slate-700">{new Date(d.updated_at).toLocaleDateString()}</td>
