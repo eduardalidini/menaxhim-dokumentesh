@@ -155,6 +155,10 @@ def execute(sql: str, params: tuple[object, ...] = ()) -> None:
         conn.commit()
 
 
+def _isoformat_if_possible(value: object) -> object:
+    return value.isoformat() if hasattr(value, "isoformat") else value
+
+
 def get_user_by_email(email: str) -> dict | None:
     row = fetchone(
         "SELECT id, username, password_hash, role, created_at FROM users WHERE username = %s",
@@ -162,7 +166,13 @@ def get_user_by_email(email: str) -> dict | None:
     )
     if not row:
         return None
-    return {"id": row[0], "email": row[1], "password_hash": row[2], "role": row[3], "created_at": row[4]}
+    return {
+        "id": row[0],
+        "email": row[1],
+        "password_hash": row[2],
+        "role": row[3],
+        "created_at": _isoformat_if_possible(row[4]),
+    }
 
 
 def create_user(email: str, password_hash: str, role: str) -> dict:
@@ -172,7 +182,12 @@ def create_user(email: str, password_hash: str, role: str) -> dict:
     )
     if not row:
         raise RuntimeError("Failed to create user")
-    return {"id": row[0], "email": row[1], "role": row[2], "created_at": row[3]}
+    return {
+        "id": row[0],
+        "email": row[1],
+        "role": row[2],
+        "created_at": _isoformat_if_possible(row[3]),
+    }
 
 
 def update_user_credentials_by_email(*, email: str, password_hash: str, role: str) -> dict | None:
@@ -188,7 +203,12 @@ def update_user_credentials_by_email(*, email: str, password_hash: str, role: st
     )
     if not row:
         return None
-    return {"id": row[0], "email": row[1], "role": row[2], "created_at": row[3]}
+    return {
+        "id": row[0],
+        "email": row[1],
+        "role": row[2],
+        "created_at": _isoformat_if_possible(row[3]),
+    }
 
 
 def list_allowed_emails() -> list[dict]:
