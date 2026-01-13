@@ -6,8 +6,10 @@ type Props = {
   role: Role | null
   currentEmail: string | null
   showManageActions?: boolean
+  showUnarchiveAction?: boolean
   onDetails: (docId: number) => void
   onArchive: (doc: DocumentItem) => void
+  onUnarchive: (doc: DocumentItem) => void
   onDelete: (doc: DocumentItem) => void
   onReplace: (doc: DocumentItem) => void
 }
@@ -17,8 +19,10 @@ export default function DocumentsTable({
   role,
   currentEmail,
   showManageActions = true,
+  showUnarchiveAction = false,
   onDetails,
   onArchive,
+  onUnarchive,
   onDelete,
   onReplace,
 }: Props) {
@@ -96,6 +100,18 @@ export default function DocumentsTable({
                       >
                         Arkivo
                       </button>
+
+                      {showUnarchiveAction ? (
+                        <button
+                          type="button"
+                          className="rounded-md border px-2 py-1 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
+                          disabled={!canManageDoc || d.status !== 'archived'}
+                          onClick={() => onUnarchive(d)}
+                          title={!canManageDoc ? 'Vetëm ngarkuesi/Admin' : undefined}
+                        >
+                          Kthe nga Arkivi
+                        </button>
+                      ) : null}
 
                       <button
                         type="button"

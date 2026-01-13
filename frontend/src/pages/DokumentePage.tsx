@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
 import DetailsModal from '../components/DetailsModal'
 import DocumentsFilters from '../components/DocumentsFilters'
@@ -28,7 +29,11 @@ function buildQuery(params: Record<string, string | number | undefined>) {
 }
 
 export default function DokumentePage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const { role, email } = getAuth()
+
+  const [uploadToast, setUploadToast] = useState<{ id: number; title: string } | null>(null)
 
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')
@@ -46,6 +51,7 @@ export default function DokumentePage() {
   const [detailsDocId, setDetailsDocId] = useState<number | null>(null)
 
   const [archiveOpen, setArchiveOpen] = useState(false)
+  const [unarchiveOpen, setUnarchiveOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [selected, setSelected] = useState<DocumentItem | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
@@ -94,6 +100,15 @@ export default function DokumentePage() {
     }
   }, [listUrl])
 
+  useEffect(() => {
+    const st: any = location.state
+    const toast = st?.uploadToast
+    if (!toast || typeof toast?.id !== 'number' || typeof toast?.title !== 'string') return
+
+    setUploadToast({ id: toast.id, title: toast.title })
+    navigate('.', { replace: true, state: null })
+  }, [location.state, navigate])
+
   function onClearFilters() {
     setQuery('')
     setCategory('')
@@ -111,6 +126,11 @@ export default function DokumentePage() {
   function requestArchive(doc: DocumentItem) {
     setSelected(doc)
     setArchiveOpen(true)
+  }
+
+  function requestUnarchive(doc: DocumentItem) {
+    setSelected(doc)
+    setUnarchiveOpen(true)
   }
 
   function requestDelete(doc: DocumentItem) {
@@ -142,6 +162,25 @@ export default function DokumentePage() {
     }
   }
 
+  async function doUnarchive() {
+    if (!selected) return
+    setActionLoading(true)
+    try {
+      const updated = await apiFetch(`/api/documents/${selected.id}/unarchive`, {
+        method: 'PATCH',
+      })
+
+      setItems((prev) => prev.map((d) => (d.id === selected.id ? updated : d)))
+      setUnarchiveOpen(false)
+      setSelected(null)
+    } catch (e: any) {
+      const msg = e?.payload?.error?.message || 'Gabim gjatë rikthimit nga arkivi'
+      setError(msg)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   async function doDelete() {
     if (!selected) return
     setActionLoading(true)
@@ -162,6 +201,24 @@ export default function DokumentePage() {
 
   function onReplaced(updated: DocumentItem) {
     setItems((prev) => prev.map((d) => (d.id === updated.id ? updated : d)))
+  }
+
+  async function undoUpload() {
+    if (!uploadToast) return
+    const { id } = uploadToast
+    setActionLoading(true)
+    try {
+      await apiFetch(`/api/documents/${id}`, {
+        method: 'DELETE',
+      })
+      setItems((prev) => prev.filter((d) => d.id !== id))
+      setUploadToast(null)
+    } catch (e: any) {
+      const msg = e?.payload?.error?.message || 'Gabim gjatë zhbërjes'
+      setError(msg)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   return (
@@ -200,12 +257,39 @@ export default function DokumentePage() {
           items={items}
           role={role}
           currentEmail={email}
+          showUnarchiveAction={status === 'archived'}
           onDetails={openDetails}
           onArchive={requestArchive}
+          onUnarchive={requestUnarchive}
           onDelete={requestDelete}
           onReplace={requestReplace}
         />
       </div>
+
+      {uploadToast ? (
+        <div className="fixed bottom-4 right-4 z-50 w-[92vw] max-w-md rounded-xl border bg-white p-4 shadow-lg">
+          <button
+            type="button"
+            className="absolute right-2 top-2 rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-50"
+            onClick={() => setUploadToast(null)}
+            disabled={actionLoading}
+            aria-label="Mbyll"
+          >
+            ×
+          </button>
+          <div className="text-sm text-slate-800">
+            Dokumenti <span className="font-medium">"{uploadToast.title}"</span> u ngarkua me sukses.
+            <button
+              type="button"
+              className="ml-2 text-sm font-medium text-slate-900 underline underline-offset-2 hover:text-slate-700 disabled:opacity-50"
+              onClick={undoUpload}
+              disabled={actionLoading}
+            >
+              Zhbëj
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <Pagination
         page={page}
@@ -234,6 +318,20 @@ export default function DokumentePage() {
         onClose={() => {
           if (actionLoading) return
           setArchiveOpen(false)
+          setSelected(null)
+        }}
+        loading={actionLoading}
+      />
+
+      <ConfirmDialog
+        open={unarchiveOpen}
+        title="Kthe dokumentin nga arkivi?"
+        description={selected ? `"${selected.title}" do të kthehet si active.` : undefined}
+        confirmText="Kthe"
+        onConfirm={doUnarchive}
+        onClose={() => {
+          if (actionLoading) return
+          setUnarchiveOpen(false)
           setSelected(null)
         }}
         loading={actionLoading}

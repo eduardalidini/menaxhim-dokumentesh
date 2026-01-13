@@ -46,12 +46,15 @@ export default function NgarkoPage() {
       if (description.trim()) form.append('description', description.trim())
       if (tags.trim()) form.append('tags', tags.trim())
 
-      await apiFetch('/api/documents', {
+      const created: any = await apiFetch('/api/documents', {
         method: 'POST',
         body: form,
       })
 
-      navigate('/dokumente', { replace: true })
+      navigate('/dokumente', {
+        replace: true,
+        state: { uploadToast: { id: created?.id, title: created?.title || title.trim() } },
+      })
     } catch (e: any) {
       const msg = e?.payload?.error?.message || 'Gabim gjatë ngarkimit'
       setError(msg)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from pathlib import Path
 
 from starlette.datastructures import UploadFile
 from starlette.requests import Request
@@ -16,6 +17,7 @@ from .db import (
     get_document_by_id,
     get_document_uploader_id,
     list_documents_rows,
+    unarchive_document_by_id,
     update_document_file_by_id,
     update_document_by_id,
 )
@@ -276,6 +278,20 @@ def archive_document(request: Request) -> Response:
     return JSONResponse(updated)
 
 
+def unarchive_document(request: Request) -> Response:
+    doc_id = int(request.path_params["doc_id"])
+
+    try:
+        _require_owner_or_admin(request, doc_id=doc_id)
+    except PermissionError:
+        return _forbidden("Only the uploader (or admin) can unarchive this document")
+
+    updated = unarchive_document_by_id(doc_id)
+    if not updated:
+        return _not_found()
+    return JSONResponse(updated)
+
+
 def delete_document(request: Request) -> Response:
     doc_id = int(request.path_params["doc_id"])
 
@@ -341,6 +357,16 @@ async def replace_document_file(request: Request) -> Response:
     if not isinstance(upload, UploadFile):
         return _bad_request("file must be a file upload")
 
+    title = form.get("title")
+    if title is not None:
+        title = str(title).strip()
+        if not title:
+            title = None
+    if title is None:
+        filename = (upload.filename or "").strip()
+        if filename:
+            title = Path(filename).stem.strip() or None
+
     allowed_types = {
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -388,6 +414,7 @@ async def replace_document_file(request: Request) -> Response:
         doc_id=doc_id,
         file_type=file_content_type,
         web_view_link=web_view_link,
+        title=title,
     )
     if not updated:
         return _not_found()

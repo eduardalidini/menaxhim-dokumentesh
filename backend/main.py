@@ -35,6 +35,7 @@ from backend.app.documents import (
     list_documents,
     update_document,
     archive_document,
+    unarchive_document,
     replace_document_file,
 )
 
@@ -240,6 +241,7 @@ routes = [
     Route("/api/documents/{doc_id:int}", endpoint=update_document, methods=["PUT"]),
     Route("/api/documents/{doc_id:int}/file", endpoint=replace_document_file, methods=["PUT"]),
     Route("/api/documents/{doc_id:int}/archive", endpoint=archive_document, methods=["PATCH"]),
+    Route("/api/documents/{doc_id:int}/unarchive", endpoint=unarchive_document, methods=["PATCH"]),
     Route("/api/documents/{doc_id:int}", endpoint=delete_document, methods=["DELETE"]),
 ]
 

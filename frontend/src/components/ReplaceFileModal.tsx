@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { apiFetch } from '../lib/api'
 import type { DocumentItem } from '../lib/types'
 
@@ -11,10 +11,18 @@ type Props = {
 
 export default function ReplaceFileModal({ open, doc, onClose, onReplaced }: Props) {
   const [file, setFile] = useState<File | null>(null)
+  const [title, setTitle] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const canSubmit = useMemo(() => !!doc && !!file && !loading, [doc, file, loading])
+
+  useEffect(() => {
+    if (!open) return
+    setError(null)
+    setFile(null)
+    setTitle('')
+  }, [open])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -25,6 +33,7 @@ export default function ReplaceFileModal({ open, doc, onClose, onReplaced }: Pro
     try {
       const form = new FormData()
       form.append('file', file)
+      if (title.trim()) form.append('title', title.trim())
 
       const updated = await apiFetch(`/api/documents/${doc.id}/file`, {
         method: 'PUT',
@@ -34,6 +43,7 @@ export default function ReplaceFileModal({ open, doc, onClose, onReplaced }: Pro
       onReplaced(updated)
       onClose()
       setFile(null)
+      setTitle('')
     } catch (e: any) {
       const msg = e?.payload?.error?.message || 'Gabim gjatë zëvendësimit'
       setError(msg)
@@ -70,8 +80,26 @@ export default function ReplaceFileModal({ open, doc, onClose, onReplaced }: Pro
           <input
             type="file"
             accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            onChange={(e) => {
+              const f = e.target.files?.[0] || null
+              setFile(f)
+              if (f) {
+                const stem = f.name.replace(/\.[^/.]+$/, '')
+                setTitle(stem)
+              }
+            }}
           />
+
+          <div className="mt-3">
+            <div className="text-xs font-medium text-slate-500">Titulli (opsional)</div>
+            <input
+              type="text"
+              className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Titulli i ri"
+            />
+          </div>
 
           {error ? <div className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 

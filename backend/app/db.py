@@ -266,15 +266,25 @@ def update_document_file_by_id(
     doc_id: int,
     file_type: str,
     web_view_link: str,
+    title: str | None = None,
 ) -> dict | None:
+    sets = ["file_type = %s", "web_view_link = %s"]
+    params: list[object] = [file_type, web_view_link]
+    if title is not None:
+        sets.append("title = %s")
+        params.append(title)
+    params.append(doc_id)
+
     row = execute_returning(
-        """
+        (
+            """
         UPDATE academic_documents
-        SET file_type = %s, web_view_link = %s, updated_at = NOW()
+        SET {sets}, updated_at = NOW()
         WHERE id = %s
         RETURNING id
-        """,
-        (file_type, web_view_link, doc_id),
+        """.format(sets=", ".join(sets))
+        ),
+        tuple(params),
     )
     if not row:
         return None
@@ -408,6 +418,21 @@ def archive_document_by_id(doc_id: int) -> dict | None:
         """
         UPDATE academic_documents
         SET status = 'archived', updated_at = NOW()
+        WHERE id = %s
+        RETURNING id
+        """,
+        (doc_id,),
+    )
+    if not row:
+        return None
+    return get_document_by_id(doc_id)
+
+
+def unarchive_document_by_id(doc_id: int) -> dict | None:
+    row = execute_returning(
+        """
+        UPDATE academic_documents
+        SET status = 'active', updated_at = NOW()
         WHERE id = %s
         RETURNING id
         """,

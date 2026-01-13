@@ -127,8 +127,10 @@ export default function ArkivaPage() {
           role={role}
           currentEmail={email}
           showManageActions={false}
+          showUnarchiveAction={false}
           onDetails={openDetails}
           onArchive={() => undefined}
+          onUnarchive={() => undefined}
           onDelete={() => undefined}
           onReplace={() => undefined}
         />
